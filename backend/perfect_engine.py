@@ -7,6 +7,7 @@ import os
 import random
 import socket
 import sqlite3
+import threading
 import time
 import uuid
 from collections import defaultdict, deque
@@ -32,19 +33,39 @@ from models import (
 from operator_registry import NeuralOperatorRegistry
 
 
+# ======================= T21：SQLite 稳健化（P2 可靠性） =======================
+def sqlite_connect(db_path: str) -> sqlite3.Connection:
+    """统一连接入口：WAL（读写并发友好）+ synchronous=NORMAL（崩溃安全与性能平衡）+
+    busy_timeout=5000（写锁短暂争用时等待而非立刻报错）。"""
+    conn = sqlite3.connect(db_path, timeout=5.0)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
+# 写入串行化：checkpoint 写、拓扑写、运行记录写（T26）共用一把进程内锁，
+# 配合 WAL 避免多 to_thread 并发写时的 SQLITE_BUSY 与交错提交。
+SQLITE_WRITE_LOCK = threading.Lock()
+
+
 class CheckpointStore:
     """基于 SQLite 的神经元时间旅行断点持久化存储引擎"""
 
     # 断点库上限：超出后按时间倒序剪枝，防止长时间运行撑爆磁盘
     CHECKPOINT_MAX = int(os.getenv("CHECKPOINT_MAX", "2000"))
+    # T21：schema 版本。v1=基线（checkpoints+topology）；v2=补 topology_json 列
+    SCHEMA_VERSION = 2
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         # db_path 缺省时优先取环境变量 AIGENT_DB_PATH，再回落到工作目录默认库
         self.db_path = db_path or os.getenv("AIGENT_DB_PATH") or "aigent_checkpoints.db"
         self._init_db()
 
-    def _init_db(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+    def _migrate(self, conn: sqlite3.Connection, current: int) -> None:
+        """T21：显式迁移函数（替换散落的 ALTER TABLE），每步幂等，可对旧库重复执行"""
+        # v0 → v1：基线表
+        if current < 1:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS checkpoints (
@@ -57,11 +78,6 @@ class CheckpointStore:
                 )
                 """
             )
-            # 旧库（按旧 DDL 重建、缺 topology_json 列）无损迁移：补列即可
-            existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(checkpoints)").fetchall()]
-            if "topology_json" not in existing_cols:
-                conn.execute("ALTER TABLE checkpoints ADD COLUMN topology_json TEXT DEFAULT ''")
-            # 拓扑持久化单行表（id 恒为 1）
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS topology (
@@ -72,7 +88,24 @@ class CheckpointStore:
                 )
                 """
             )
-            conn.commit()
+        # v1 → v2：旧库补 topology_json 列（幂等：列存在则跳过）
+        if current < 2:
+            existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(checkpoints)").fetchall()]
+            if "topology_json" not in existing_cols:
+                conn.execute("ALTER TABLE checkpoints ADD COLUMN topology_json TEXT DEFAULT ''")
+
+    def _init_db(self) -> None:
+        with SQLITE_WRITE_LOCK:
+            with sqlite_connect(self.db_path) as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+                row = conn.execute("SELECT version FROM schema_version").fetchone()
+                current = int(row[0]) if row else 0
+                self._migrate(conn, current)
+                if row:
+                    conn.execute("UPDATE schema_version SET version = ?", (self.SCHEMA_VERSION,))
+                else:
+                    conn.execute("INSERT INTO schema_version (version) VALUES (?)", (self.SCHEMA_VERSION,))
+                conn.commit()
 
     async def save_checkpoint(
         self,
@@ -88,31 +121,32 @@ class CheckpointStore:
         topology_str = json.dumps(topology, ensure_ascii=False) if topology else ""
 
         def _insert() -> None:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    """
-                    INSERT INTO checkpoints
-                        (checkpoint_id, run_id, node_id, timestamp, state_payload, generated_code, topology_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (checkpoint_id, run_id, node_id, ts, payload_str, generated_code, topology_str),
-                )
-                # 断点剪枝：只保留最近 CHECKPOINT_MAX 条
-                conn.execute(
-                    """
-                    DELETE FROM checkpoints WHERE checkpoint_id NOT IN
-                    (SELECT checkpoint_id FROM checkpoints ORDER BY timestamp DESC LIMIT ?)
-                    """,
-                    (self.CHECKPOINT_MAX,),
-                )
-                conn.commit()
+            with SQLITE_WRITE_LOCK:  # T21：写串行化
+                with sqlite_connect(self.db_path) as conn:
+                    conn.execute(
+                        """
+                        INSERT INTO checkpoints
+                            (checkpoint_id, run_id, node_id, timestamp, state_payload, generated_code, topology_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (checkpoint_id, run_id, node_id, ts, payload_str, generated_code, topology_str),
+                    )
+                    # 断点剪枝：只保留最近 CHECKPOINT_MAX 条
+                    conn.execute(
+                        """
+                        DELETE FROM checkpoints WHERE checkpoint_id NOT IN
+                        (SELECT checkpoint_id FROM checkpoints ORDER BY timestamp DESC LIMIT ?)
+                        """,
+                        (self.CHECKPOINT_MAX,),
+                    )
+                    conn.commit()
 
         await asyncio.to_thread(_insert)
         return checkpoint_id
 
     async def list_checkpoints(self, limit: int = 20) -> List[Dict[str, Any]]:
         def _query() -> List[Dict[str, Any]]:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
                     "SELECT * FROM checkpoints ORDER BY timestamp DESC LIMIT ?",
@@ -137,7 +171,7 @@ class CheckpointStore:
         """按 id 精确取回断点完整行（含 topology_json），不再受 list 窗口限制"""
 
         def _query() -> Optional[Dict[str, Any]]:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 row = conn.execute(
                     "SELECT * FROM checkpoints WHERE checkpoint_id = ?",
@@ -350,22 +384,23 @@ class PerfectNeuralEngine:
 
     def _save_topology_sync(self) -> None:
         """同步写拓扑单行表（供 asyncio.to_thread 调度）"""
-        with sqlite3.connect(self.checkpoint_store.db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO topology (id, nodes_json, edges_json, updated_at) VALUES (1, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    nodes_json = excluded.nodes_json,
-                    edges_json = excluded.edges_json,
-                    updated_at = excluded.updated_at
-                """,
-                (
-                    json.dumps([n.model_dump() for n in self.nodes.values()], ensure_ascii=False),
-                    json.dumps([e.model_dump() for e in self.edges], ensure_ascii=False),
-                    datetime.now().isoformat(),
-                ),
-            )
-            conn.commit()
+        with SQLITE_WRITE_LOCK:  # T21：写串行化
+            with sqlite_connect(self.checkpoint_store.db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO topology (id, nodes_json, edges_json, updated_at) VALUES (1, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        nodes_json = excluded.nodes_json,
+                        edges_json = excluded.edges_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        json.dumps([n.model_dump() for n in self.nodes.values()], ensure_ascii=False),
+                        json.dumps([e.model_dump() for e in self.edges], ensure_ascii=False),
+                        datetime.now().isoformat(),
+                    ),
+                )
+                conn.commit()
 
     async def save_topology(self) -> None:
         """将当前节点与连线持久化到 SQLite（增删节点/连线、位置与配置变更、RESET 后调用）"""
@@ -379,7 +414,7 @@ class PerfectNeuralEngine:
     def _load_topology_sync(self) -> None:
         """启动时同步还原拓扑（__init__ 内可直接同步读）"""
         try:
-            with sqlite3.connect(self.checkpoint_store.db_path) as conn:
+            with sqlite_connect(self.checkpoint_store.db_path) as conn:
                 has_table = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='topology'"
                 ).fetchone()
@@ -918,15 +953,32 @@ class PerfectNeuralEngine:
         }
 
     def start(self) -> None:
-        if not self._engine_task or self._engine_task.done():
-            self._engine_task = asyncio.create_task(self._dag_execution_loop())
-        if not self._telemetry_task or self._telemetry_task.done():
-            self._telemetry_task = asyncio.create_task(self._telemetry_loop())
+        for name, coro_factory in (
+            ("dag", self._dag_execution_loop),
+            ("telemetry", self._telemetry_loop),
+        ):
+            task = self._engine_task if name == "dag" else self._telemetry_task
+            needs_restart = task is None or task.done() or task.cancelling() > 0
+            if needs_restart:
+                new_task = asyncio.create_task(coro_factory())
+                if name == "dag":
+                    self._engine_task = new_task
+                else:
+                    self._telemetry_task = new_task
 
     async def stop(self) -> None:
         for t in (self._engine_task, self._telemetry_task):
             if t and not t.done():
                 t.cancel()
+        # T25：等待取消真正落地（跨 loop 安全的 done() 轮询——engine 为模块级单例，
+        # start/stop 可能来自不同事件循环，不能用 gather 携带跨 loop Future）。
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if all(t is None or t.done() for t in (self._engine_task, self._telemetry_task)):
+                break
+            await asyncio.sleep(0.02)
+        self._engine_task = None
+        self._telemetry_task = None
 
     def get_snapshot(self) -> WorkflowSnapshot:
         return WorkflowSnapshot(
