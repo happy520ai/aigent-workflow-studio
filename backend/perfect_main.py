@@ -432,8 +432,8 @@ async def create_neural_edge(req: CreateEdgeRequest):
 
 @app.get("/api/v1/runs")
 async def list_run_history(limit: int = Query(default=20, ge=1, le=50)):
-    """最近 DAG 运行记录（倒序）"""
-    return list(reversed(engine.run_history))[:limit]
+    """最近 DAG 运行记录（倒序）。T26：读 SQLite runs 表，重启不丢"""
+    return await engine.checkpoint_store.list_runs(limit=limit)
 
 
 @app.get("/api/v1/search")

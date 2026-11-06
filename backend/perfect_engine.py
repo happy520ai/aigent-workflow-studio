@@ -58,8 +58,9 @@ class CheckpointStore:
 
     # 断点库上限：超出后按时间倒序剪枝，防止长时间运行撑爆磁盘
     CHECKPOINT_MAX = int(os.getenv("CHECKPOINT_MAX", "2000"))
-    # T21：schema 版本。v1=基线（checkpoints+topology）；v2=补 topology_json 列
-    SCHEMA_VERSION = 2
+    # T21：schema 版本。v1=基线（checkpoints+topology）；v2=补 topology_json 列；
+    # v3=runs 运行记录持久化表（T26，重启不丢）
+    SCHEMA_VERSION = 3
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         # db_path 缺省时优先取环境变量 AIGENT_DB_PATH，再回落到工作目录默认库
@@ -97,6 +98,20 @@ class CheckpointStore:
             existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(checkpoints)").fetchall()]
             if "topology_json" not in existing_cols:
                 conn.execute("ALTER TABLE checkpoints ADD COLUMN topology_json TEXT DEFAULT ''")
+        # v2 → v3：runs 运行记录持久化表（T26）
+        if current < 3:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runs (
+                    round_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    nodes_json TEXT NOT NULL
+                )
+                """
+            )
 
     def _init_db(self) -> None:
         with SQLITE_WRITE_LOCK:
@@ -165,6 +180,69 @@ class CheckpointStore:
                         "timestamp": r["timestamp"],
                         "state_payload": json.loads(r["state_payload"]),
                         "generated_code": r["generated_code"],
+                    }
+                    for r in rows
+                ]
+
+        return await asyncio.to_thread(_query)
+
+    async def save_run(
+        self,
+        round_id: str,
+        run_id: str,
+        started_at: str,
+        finished_at: str,
+        status: str,
+        nodes: List[Dict[str, Any]],
+    ) -> None:
+        """T26：持久化一轮 DAG 运行记录（重启后 /api/v1/runs 仍有数据）"""
+        nodes_str = json.dumps(nodes, ensure_ascii=False)
+
+        def _insert() -> None:
+            with SQLITE_WRITE_LOCK:
+                with sqlite_connect(self.db_path) as conn:
+                    conn.execute(
+                        """
+                        INSERT INTO runs (round_id, run_id, started_at, finished_at, status, nodes_json)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(round_id) DO UPDATE SET
+                            run_id = excluded.run_id,
+                            started_at = excluded.started_at,
+                            finished_at = excluded.finished_at,
+                            status = excluded.status,
+                            nodes_json = excluded.nodes_json
+                        """,
+                        (round_id, run_id, started_at, finished_at, status, nodes_str),
+                    )
+                    # 只保留最近 50 轮
+                    conn.execute(
+                        """
+                        DELETE FROM runs WHERE round_id NOT IN
+                        (SELECT round_id FROM runs ORDER BY finished_at DESC LIMIT 50)
+                        """
+                    )
+                    conn.commit()
+
+        await asyncio.to_thread(_insert)
+
+    async def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """T26：按时间倒序读运行记录（与内存 run_history 行结构兼容：round_id/started_at/finished_at/nodes）"""
+
+        def _query() -> List[Dict[str, Any]]:
+            with sqlite_connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT * FROM runs ORDER BY finished_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+                return [
+                    {
+                        "round_id": r["round_id"],
+                        "run_id": r["run_id"],
+                        "started_at": r["started_at"],
+                        "finished_at": r["finished_at"],
+                        "status": r["status"],
+                        "nodes": json.loads(r["nodes_json"]),
                     }
                     for r in rows
                 ]
@@ -863,14 +941,25 @@ class PerfectNeuralEngine:
                 blocked = self._failed_downstream(failed)
 
         # 运行记录归档（GET /runs 数据源，最多保留 20 轮）
-        self.run_history.append(
-            {
-                "round_id": round_id,
-                "started_at": started_at,
-                "finished_at": datetime.now().isoformat(),
-                "nodes": node_records,
-            }
-        )
+        run_record = {
+            "round_id": round_id,
+            "started_at": started_at,
+            "finished_at": datetime.now().isoformat(),
+            "nodes": node_records,
+        }
+        self.run_history.append(run_record)
+        # T26：同时落库（重启不丢）；失败不阻断轮次
+        try:
+            await self.checkpoint_store.save_run(
+                round_id=round_id,
+                run_id=self.current_run_id,
+                started_at=started_at,
+                finished_at=run_record["finished_at"],
+                status="completed",
+                nodes=node_records,
+            )
+        except Exception as exc:
+            await self.append_log(f"[Warn] 运行记录落库失败: {exc}")
 
         # 雷达图由真实统计推导
         self.radar_metrics = self._compute_radar_metrics()

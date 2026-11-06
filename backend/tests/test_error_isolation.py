@@ -91,6 +91,10 @@ def test_runs_endpoint_returns_desc_order(perfect_client):
     rows = resp.json()
     assert isinstance(rows, list)
     assert len(rows) >= 1
-    # 倒序：第一条应为请求时刻的最新一轮（允许期间插入了更新的轮次）
-    assert rows[0]["round_id"] in {expected_latest, engine.run_history[-1]["round_id"]}
+    # 倒序（T26 起读库）：按 finished_at 严格降序
+    finished = [r["finished_at"] for r in rows]
+    assert finished == sorted(finished, reverse=True)
+    # DB 写入与内存归档存在毫秒级先后，最新行必须仍能对上内存近期轮次
+    memory_ids = {r["round_id"] for r in engine.run_history}
+    assert rows[0]["round_id"] in memory_ids | {expected_latest}
 
