@@ -514,6 +514,8 @@ export const BioluminescentCanvas: React.FC<Props> = ({ isRunning, nodes, edges 
       });
 
       ctx.restore();
+      // T45：用户偏好减少动态时只渲染一帧静态画面，不进入 60FPS 循环
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       animId = requestAnimationFrame(renderFrame);
     };
 

@@ -31,6 +31,7 @@ import { workflowApi } from './hooks/useWorkflowApi';
 import { API_BASE, WS_URL, setAdminToken } from './config';
 import { emitToast } from './components/Toast';
 import { computeLayeredLayout } from './utils/layout';
+import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion';
 import {
   INITIAL_NODES,
   INITIAL_EDGES,
@@ -103,6 +104,8 @@ export default function Workbench() {
   const [wsConnected, setWsConnected] = useState<boolean>(false);
   const [wsRetryCount, setWsRetryCount] = useState<number>(0); // T42：重连中第 N 次
   const [wsReconnectKey, setWsReconnectKey] = useState<number>(0); // T43：令牌变更重建 WS
+  const prefersReduced = usePrefersReducedMotion(); // T45：系统减少动态偏好
+  const [narrowPanel, setNarrowPanel] = useState<'none' | 'library' | 'inspector'>('none'); // T45：窄屏抽屉
   const [runHistory, setRunHistory] = useState<RunRecord[]>([]);
 
   // 最新状态镜像：WS 回调与本地仿真定时器读取，避免闭包过期
@@ -749,6 +752,12 @@ export default function Workbench() {
           </div>
         </div>
 
+        {/* T45：窄屏抽屉切换（lg 以下显示） */}
+        <div className="flex items-center gap-1 lg:hidden">
+          <button type="button" aria-label="切换算子库" onClick={() => setNarrowPanel((k) => (k === 'library' ? 'none' : 'library'))} className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-cyan-300 font-mono">库</button>
+          <button type="button" aria-label="切换属性面板" onClick={() => setNarrowPanel((k) => (k === 'inspector' ? 'none' : 'inspector'))} className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-cyan-300 font-mono">属性</button>
+        </div>
+
         {/* 中部运行/暂停/调试发光按钮组 + 连接指示灯 */}
         <div className="flex items-center space-x-3">
           <button
@@ -865,6 +874,7 @@ export default function Workbench() {
         <aside className="w-12 bg-[#090d18] border-r border-slate-800/80 flex flex-col items-center py-3 justify-between z-30">
           <div className="flex flex-col items-center space-y-4">
             <button
+              aria-label="清空侧栏"
               onClick={() => setActiveMiniDrawer('none')}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
                 activeMiniDrawer === 'none'
@@ -875,6 +885,7 @@ export default function Workbench() {
               <Layers className="w-4 h-4" />
             </button>
             <button
+              aria-label="共享记忆总线"
               onClick={() => setActiveMiniDrawer(activeMiniDrawer === 'memory' ? 'none' : 'memory')}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
                 activeMiniDrawer === 'memory'
@@ -885,6 +896,7 @@ export default function Workbench() {
               <Database className="w-4 h-4" />
             </button>
             <button
+              aria-label="拓扑与运行记录"
               onClick={() => setActiveMiniDrawer(activeMiniDrawer === 'topology' ? 'none' : 'topology')}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
                 activeMiniDrawer === 'topology'
@@ -895,18 +907,21 @@ export default function Workbench() {
               <Cpu className="w-4 h-4" />
             </button>
             <button
+              aria-label="打开沙盒"
               onClick={() => setShowSandboxModal(true)}
               className="w-8 h-8 rounded-lg hover:bg-slate-800/60 flex items-center justify-center text-slate-400 hover:text-cyan-300"
             >
               <Share2 className="w-4 h-4" />
             </button>
             <button
+              aria-label="导出工程 ZIP"
               onClick={() => window.open(`${API_BASE}/publish/export-zip`, '_blank')}
               className="w-8 h-8 rounded-lg hover:bg-slate-800/60 flex items-center justify-center text-slate-400 hover:text-emerald-300"
             >
               <FileCode className="w-4 h-4" />
             </button>
             <button
+              aria-label="时间旅行控制台"
               onClick={() => setShowSandboxModal(true)}
               className="w-8 h-8 rounded-lg hover:bg-cyan-950/60 flex items-center justify-center text-cyan-400"
             >
@@ -915,12 +930,14 @@ export default function Workbench() {
           </div>
           <div className="flex flex-col items-center space-y-4">
             <button
+              aria-label="打开沙盒与断点"
               onClick={() => setShowSandboxModal(true)}
               className="w-8 h-8 rounded-lg hover:bg-slate-800/60 flex items-center justify-center text-slate-400 hover:text-emerald-300"
             >
               <Clock className="w-4 h-4" />
             </button>
             <button
+              aria-label="大模型设置"
               onClick={() => setActiveMiniDrawer(activeMiniDrawer === 'settings' ? 'none' : 'settings')}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
                 activeMiniDrawer === 'settings'
@@ -1047,7 +1064,7 @@ export default function Workbench() {
           >
           {/* 60FPS 加色混合生物神经元 + 多股交织突触彗星脉冲引擎 */}
           <BioluminescentCanvas
-            isRunning={projectStatus === '运行中'}
+            isRunning={projectStatus === '运行中' && !prefersReduced}
             nodes={nodes.map((n) => ({
               id: n.id,
               x: n.position.x,
@@ -1081,7 +1098,7 @@ export default function Workbench() {
                 isSelected={node.id === selectedNodeId}
                 isInSelection={selectionSet.has(node.id)}
                 isLinkSource={node.id === linkingSourceId}
-                isRunning={projectStatus === '运行中'}
+                isRunning={projectStatus === '运行中' && !prefersReduced}
                 ecgSeries={ecgSeries}
                 onOpenSandbox={() => setShowSandboxModal(true)}
                 onNodeMouseDown={(e, nd) => {
@@ -1117,7 +1134,8 @@ export default function Workbench() {
         </main>
 
         {/* 2.4 右侧属性配置、五维扫描雷达、JSON 配置区与 AI 终端 */}
-        <aside className="w-[310px] bg-[#0d1322]/95 border-l border-slate-800/80 flex flex-col justify-between p-3 space-y-3 z-20 overflow-y-auto">
+        <aside
+          className={`${narrowPanel === 'inspector' ? 'fixed inset-y-0 right-0 z-50 shadow-2xl' : 'hidden'} lg:flex w-[310px] bg-[#0d1322]/95 border-l border-slate-800/80 flex-col justify-between p-3 space-y-3 z-20 overflow-y-auto`}>
           <div className="bg-[#121b2e]/90 border border-slate-800 rounded-xl p-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
               <span className="text-xs font-semibold text-slate-200">属性配置 (Inspector)</span>
@@ -1136,7 +1154,7 @@ export default function Workbench() {
             <div className="text-[11px] text-slate-400 mb-1">属性配置 · {selectedNode?.title}</div>
 
             <RadarSweepWidget
-              isRunning={projectStatus === '运行中'}
+              isRunning={projectStatus === '运行中' && !prefersReduced}
               metrics={[
                 radar.radar_perception,
                 radar.responsiveness,
