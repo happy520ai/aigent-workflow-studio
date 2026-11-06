@@ -72,3 +72,6 @@ computing gzip size...
 结构校验结果: 47 通过, 0 失败
 
 [补记] pytest -q 摘要行因 pytest.ini addopts -q 且终端非 TTY 未打印；以 --collect-only 累计=83、运行退出码=0 确认：83 passed, 0 failed。
+
+=== T46 dist 基线（2026-11-07）===
+index.html 0.59K | CSS 32.33K | lucide 22.00K | app 72.09K | react_vendor 133.93K；总计 269K；sourcemap=0；Tailwind 已是构建期本地化（无 CDN）
