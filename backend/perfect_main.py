@@ -184,6 +184,26 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AdminAuthMiddleware)
 
 
+# ======================= T14 安全响应头（P1 安全加固） =======================
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """统一安全响应头。注册在 CORS 内侧、限流外侧之外→ 见文件末尾注册顺序：本中间件
+    位于 CORS 之下（最外业务层），保证 401/429 等所有响应都带安全头。
+    live-app 例外：不设 X-Frame-Options（该页面本就设计为可被 iframe 嵌入，由 CSP sandbox 控制）。"""
+
+    XFO_EXEMPT_PATHS = {"/api/v1/publish/live-app"}
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if request.url.path not in self.XFO_EXEMPT_PATHS:
+            response.headers.setdefault("X-Frame-Options", "DENY")
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+
 # ======================= T13 限流与体积限制（P1 安全加固） =======================
 class TokenBucketLimiter:
     """内存令牌桶（按 key 维度限流）。asyncio 单线程内 read-modify-write 无 await，天然原子。"""
@@ -255,6 +275,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# T14 安全头中间件注册在最后 → 位于 CORS 之下最外层，401/429 等全部响应都带安全头
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.get("/api/v1/components", response_model=List[ComponentItem])
