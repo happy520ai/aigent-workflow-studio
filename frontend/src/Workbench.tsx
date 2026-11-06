@@ -223,7 +223,8 @@ export default function Workbench() {
   const { linkingSourceId, handleNodeShiftClick, persistNodePosition } = useSynapseLinker(
     API_BASE,
     (newEdge) => {
-      setEdges((prev) => [...prev, newEdge]);
+      // T51 实证修复：POST 响应与 WS 快照竞态会双加同一条边（快照先到、响应后到）——按 id 去重
+      setEdges((prev) => (prev.some((e) => e.id === newEdge.id) ? prev : [...prev, newEdge]));
       pushUndo({ kind: 'add_edge', edge: newEdge });
       pushLog(`[Synapse] 已建立突触连线: ${newEdge.source} -> ${newEdge.target}`);
     },
@@ -345,7 +346,19 @@ export default function Workbench() {
       return;
     }
     if (item.id === 'dep_publish') {
-      window.open(`${API_BASE}/publish/export-zip`, '_blank');
+      void (async () => {
+        // T51 修复：window.open 在 await 后会被弹窗拦截 —— 先同步预开窗口，异步拿到签名地址后再赋址
+        const popup = window.open('', '_blank');
+        try {
+          const mint = await workflowApi.mintSignedUrls();
+          if (popup) popup.location.href = mint.export_zip_url;
+          else window.open(mint.export_zip_url, '_blank');
+        } catch {
+          const fallbackUrl = `${API_BASE}/publish/export-zip`;
+          if (popup) popup.location.href = fallbackUrl;
+          else window.open(fallbackUrl, '_blank');
+        }
+      })();
       pushLog('[Publish] 正在导出独立前端工程 ZIP 包...');
       return;
     }
@@ -915,7 +928,14 @@ export default function Workbench() {
             </button>
             <button
               aria-label="导出工程 ZIP"
-              onClick={() => window.open(`${API_BASE}/publish/export-zip`, '_blank')}
+              onClick={() => void (async () => {
+        try {
+          const mint = await workflowApi.mintSignedUrls();
+          window.open(mint.export_zip_url, '_blank');
+        } catch {
+          window.open(`${API_BASE}/publish/export-zip`, '_blank');
+        }
+      })()}
               className="w-8 h-8 rounded-lg hover:bg-slate-800/60 flex items-center justify-center text-slate-400 hover:text-emerald-300"
             >
               <FileCode className="w-4 h-4" />

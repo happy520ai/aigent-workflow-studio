@@ -146,6 +146,14 @@ export const workflowApi = {
     return jsonOrThrow(res, '自动布局失败');
   },
 
+  mintSignedUrls: async (): Promise<{ live_app_url: string; export_zip_url: string; signed: boolean }> => {
+    const res = await fetch(`${API_BASE}/publish/live-app-url`, { headers: adminHeaders() });
+    const body = await jsonOrThrow<any>(res, '签发导出地址失败');
+    // 兜底归一：后端返回相对地址时以 API_BASE 源解析（popup 赋址需要绝对 URL）
+    const abs = (u: string) => { try { return new URL(u, API_BASE).toString(); } catch { return u; } };
+    return { live_app_url: abs(body.live_app_url ?? body.url), export_zip_url: abs(body.export_zip_url), signed: body.signed };
+  },
+
   aiSuggest: async (prompt: string): Promise<{ added_nodes: number; added_edges: number }> => {
     const res = await fetch(`${API_BASE}/workflow/ai-suggest`, {
       method: 'POST',

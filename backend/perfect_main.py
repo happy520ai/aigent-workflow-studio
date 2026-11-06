@@ -141,8 +141,22 @@ def _authenticate_websocket(websocket: WebSocket) -> Optional[int]:
     return 4401
 
 
+def _sign_resource(resource: str, exp_epoch: int, token: str) -> str:
+    return hmac.new(token.encode("utf-8"), f"{resource}:{exp_epoch}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+
 def _sign_live_app(exp_epoch: int, token: str) -> str:
-    return hmac.new(token.encode("utf-8"), f"live-app:{exp_epoch}".encode("utf-8"), hashlib.sha256).hexdigest()
+    return _sign_resource("live-app", exp_epoch, token)
+
+
+def _verify_resource_signature(resource: str, exp: str, sig: str, token: str) -> bool:
+    try:
+        exp_epoch = int(exp)
+    except (TypeError, ValueError):
+        return False
+    if exp_epoch < int(time.time()):
+        return False
+    return hmac.compare_digest(sig, _sign_resource(resource, exp_epoch, token))
 
 
 def _verify_live_app_signature(exp: str, sig: str, token: str) -> bool:
@@ -182,10 +196,13 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         if needs_token:
             supplied = request.headers.get("X-Admin-Token", "")
             ok = bool(supplied) and hmac.compare_digest(supplied, token)
-            if not ok and path == "/api/v1/publish/live-app":
-                # iframe 场景：短期签名 URL 兜底（exp + HMAC 签名）
-                ok = _verify_live_app_signature(
-                    request.query_params.get("exp", ""), request.query_params.get("sig", ""), token
+            if not ok and path in ("/api/v1/publish/live-app", "/api/v1/publish/export-zip"):
+                # 浏览器直开/下载场景（iframe/window.open 无法携带自定义头）：短期签名 URL 兜底
+                ok = _verify_resource_signature(
+                    path.rsplit("/", 1)[-1],
+                    request.query_params.get("exp", ""),
+                    request.query_params.get("sig", ""),
+                    token,
                 )
             if not ok:
                 return JSONResponse(
@@ -989,15 +1006,23 @@ async def view_published_live_app(request: Request):
 
 
 @app.get("/api/v1/publish/live-app-url")
-async def mint_live_app_url(ttl_seconds: int = Query(default=300, ge=10, le=3600)):
-    """为 iframe/浏览器直开场景签发 live-app 短期签名 URL（该页面无法携带 X-Admin-Token 头）。
-    本路由自身受鉴权保护：仅持有令牌者可换取签名 URL。"""
+async def mint_live_app_url(request: Request, ttl_seconds: int = Query(default=300, ge=10, le=3600)):
+    """为 iframe/浏览器直开场景签发 live-app/export-zip 短期签名 URL（这些页面无法携带 X-Admin-Token 头）。
+    返回绝对地址（基于请求 base_url）：签名 URL 常在 window.open 的空白 popup 中赋址，
+    相对路径会被解析到错误源（E2E 实证）。本路由自身受鉴权保护。"""
+    base = str(request.base_url).rstrip("/")
     token = _admin_token()
     if not token:
-        return {"url": "/api/v1/publish/live-app", "signed": False, "expires_at": None}
+        return {
+            "url": f"{base}/api/v1/publish/live-app",
+            "export_zip_url": f"{base}/api/v1/publish/export-zip",
+            "signed": False,
+            "expires_at": None,
+        }
     exp = int(time.time()) + ttl_seconds
     return {
-        "url": f"/api/v1/publish/live-app?exp={exp}&sig={_sign_live_app(exp, token)}",
+        "url": f"{base}/api/v1/publish/live-app?exp={exp}&sig={_sign_resource('live-app', exp, token)}",
+        "export_zip_url": f"{base}/api/v1/publish/export-zip?exp={exp}&sig={_sign_resource('export-zip', exp, token)}",
         "signed": True,
         "expires_at": exp,
     }

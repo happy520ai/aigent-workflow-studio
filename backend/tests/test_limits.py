@@ -22,7 +22,7 @@ def test_strict_rate_limit_429(api, monkeypatch):
     old_capacity, old_rate = limiter.capacity, limiter.rate_per_min
     try:
         limiter.capacity = 2
-        limiter.rate_per_min = 600  # 只受突发容量约束
+        limiter.rate_per_min = 0  # 关闭补给：只受突发容量约束（rate=600 会随请求间隔恰好补满）
         limiter._buckets.clear()
         # 前两个请求正常到达路由（SSRF 校验返回 400），第三个被限流 429
         assert api.put("/api/v1/settings/llm", json=payload).status_code == 400

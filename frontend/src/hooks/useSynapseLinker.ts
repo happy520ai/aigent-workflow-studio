@@ -1,5 +1,6 @@
 // frontend/src/hooks/useSynapseLinker.ts
 import { useState, useCallback } from 'react';
+import { adminHeaders } from '../config';
 
 export interface SynapseEdge {
   id: string;
@@ -37,7 +38,8 @@ export function useSynapseLinker(
       try {
         const res = await fetch(`${apiBase}/workflow/edges`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // T10/T43：突触连线创建同样携带管理令牌
+          headers: { 'Content-Type': 'application/json', ...adminHeaders() },
           body: JSON.stringify({ source, target: nodeId }),
         });
         if (res.ok) {
@@ -82,8 +84,9 @@ export function useSynapseLinker(
     async (nodeId: string, x: number, y: number) => {
       try {
         await fetch(`${apiBase}/workflow/nodes/${nodeId}/position`, {
+          // T10/T43：坐标持久化同样携带管理令牌
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...adminHeaders() },
           body: JSON.stringify({ x, y }),
         });
       } catch {

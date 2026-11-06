@@ -152,13 +152,12 @@ export const MiniDrawer: React.FC<{
           </div>
         ))}
 
-      {/* —— 大模型设置 —— */}
-      {kind === 'settings' &&
-        (wsConnected ? (
-          <div className="flex-1 flex flex-col space-y-2.5">
-            <div className="text-[10px] font-mono text-slate-500 break-all">
-              {llmMsg || '读取中...'}
-            </div>
+      {/* —— 大模型设置（T51：令牌填写恰是 WS 因无令牌被拒时的自救入口，故不依赖 wsConnected） —— */}
+      {kind === 'settings' && (
+        <div className="flex-1 flex flex-col space-y-2.5">
+          <div className="text-[10px] font-mono text-slate-500 break-all">
+            {llmMsg || '读取中...'}
+          </div>
             <label className="text-[10px] text-slate-400">
               api_key（留空表示不修改 {llmForm.key_hint ? `| 当前 ${llmForm.key_hint}` : ''}）
               <input
@@ -203,12 +202,8 @@ export const MiniDrawer: React.FC<{
             >
               保存模型配置
             </button>
-          </div>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-[11px] text-slate-500">
-            仅后端在线时可用
-          </div>
-        ))}
+        </div>
+      )}
     </div>
   );
 };

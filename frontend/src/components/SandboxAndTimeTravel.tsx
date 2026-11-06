@@ -1,5 +1,6 @@
 // frontend/src/components/SandboxAndTimeTravel.tsx
 import React, { useEffect, useState } from 'react';
+import { adminHeaders } from '../config';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -62,7 +63,7 @@ export const SandboxAndTimeTravelModal: React.FC<Props> = ({
     try {
       const res = await fetch(`${apiBase}/ast/validate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
         body: JSON.stringify({ code: codeToValidate }),
       });
       if (res.ok) {
@@ -79,8 +80,8 @@ export const SandboxAndTimeTravelModal: React.FC<Props> = ({
     setLoading(true);
     try {
       const [previewRes, ckptRes] = await Promise.all([
-        fetch(`${apiBase}/sandbox/preview`),
-        fetch(`${apiBase}/checkpoints?limit=20`),
+        fetch(`${apiBase}/sandbox/preview`, { headers: adminHeaders() }),
+        fetch(`${apiBase}/checkpoints?limit=20`, { headers: adminHeaders() }),
       ]);
       if (previewRes.ok) {
         const previewData = await previewRes.json();
@@ -114,6 +115,7 @@ export const SandboxAndTimeTravelModal: React.FC<Props> = ({
   const handleRestore = async (ckpt: CheckpointRecord) => {
     try {
       await fetch(`${apiBase}/checkpoints/${ckpt.checkpoint_id}/restore`, {
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
         method: 'POST',
       });
     } catch {
