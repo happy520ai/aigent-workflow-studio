@@ -39,6 +39,7 @@ import {
 import { SandboxAndTimeTravelModal } from './components/SandboxAndTimeTravel';
 import { useSynapseLinker } from './hooks/useSynapseLinker';
 import { API_BASE, WS_URL, adminHeaders, buildWsUrl } from './config';
+import { computeLayeredLayout } from './utils/layout';
 
 interface NodePosition {
   x: number;
@@ -441,6 +442,32 @@ export default function Workbench() {
   useEffect(() => {
     void refreshWorkflows();
   }, [refreshWorkflows]);
+
+  // T35：Kahn 分层自动布局 → 批量落位
+  const handleAutoLayout = useCallback(async () => {
+    const positions = computeLayeredLayout(nodesRef.current, edges);
+    if (positions.length === 0) return;
+    try {
+      const res = await fetch(`${API_BASE}/workflow/positions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+        body: JSON.stringify({ positions }),
+      });
+      if (!res.ok) {
+        pushLog(`[Error] 自动布局失败: ${res.status}`);
+        return;
+      }
+      setNodes((prev) =>
+        prev.map((n) => {
+          const p = positions.find((q) => q.id === n.id);
+          return p ? { ...n, position: { x: p.x, y: p.y } } : n;
+        })
+      );
+      pushLog('[Layout] 已按拓扑层级自动排列节点');
+    } catch (err) {
+      pushLog(`[Error] 自动布局失败: ${String(err)}`);
+    }
+  }, [edges, pushLog]);
 
   // T34：AI 生成节点——自然语言 → 服务端校验应用后刷新快照
   const handleAiSuggest = useCallback(async () => {
@@ -942,6 +969,16 @@ export default function Workbench() {
               className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-cyan-300 font-mono hover:border-cyan-400/70 transition"
             >
               + 新建
+            </button>
+            {/* T35：Kahn 分层自动布局 */}
+            <button
+              type="button"
+              aria-label="自动布局"
+              onClick={() => void handleAutoLayout()}
+              title="按拓扑层级自动排列节点"
+              className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-emerald-300 font-mono hover:border-emerald-400/70 transition"
+            >
+              ⌗ 自动布局
             </button>
           </div>
         </div>

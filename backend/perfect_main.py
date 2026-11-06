@@ -652,6 +652,31 @@ async def update_node_position(node_id: str, req: MoveNodeRequest):
     return node
 
 
+class BatchPositionItem(BaseModel):
+    id: str
+    x: float
+    y: float
+
+
+class BatchPositionRequest(BaseModel):
+    positions: List[BatchPositionItem]
+
+
+@app.patch("/api/v1/workflow/positions")
+async def batch_update_positions(req: BatchPositionRequest):
+    """T35：自动布局批量落位（单次保存 + 单次快照广播，避免逐节点抖动）"""
+    known = [p for p in req.positions if p.id in engine.nodes]
+    if not known:
+        raise HTTPException(status_code=404, detail="没有任何有效节点 id")
+    for p in known:
+        node = engine.nodes[p.id]
+        node.position.x = p.x
+        node.position.y = p.y
+    await engine.save_topology()
+    await ws_manager.broadcast("workflow_snapshot", engine.get_snapshot().model_dump())
+    return {"updated": len(known), "skipped": len(req.positions) - len(known)}
+
+
 @app.put("/api/v1/workflow/nodes/{node_id}/config", response_model=WorkflowNode)
 async def update_node_config(node_id: str, config_json: Dict[str, Any]):
     # T13：config_json 体积上限 64KB
