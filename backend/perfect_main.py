@@ -10,6 +10,7 @@ import socket
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -25,6 +26,7 @@ from ast_validator import ASTValidationReport, FrontendASTValidator
 from metrics import metrics as app_metrics
 from models import ComponentItem, ControlRequest, NeuralEdge, WorkflowNode, WorkflowSnapshot
 from obs_logging import configure_logging, get_logger, request_id_var
+from operator_registry import _ALIASES
 from perfect_engine import ConnectionManager, PerfectNeuralEngine
 from publisher import WorkflowArtifactPublisher
 
@@ -397,6 +399,90 @@ async def activate_workflow(workflow_id: str):
         return await engine.switch_workflow(workflow_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# ======================= T33：导入 / 导出 JSON =======================
+EXPORT_SCHEMA = "aigent-workflow"
+EXPORT_SCHEMA_VERSION = 1
+
+
+@app.get("/api/v1/workflows/{workflow_id}/export")
+async def export_workflow(workflow_id: str):
+    row = await engine.checkpoint_store.get_workflow_row(workflow_id)
+    if not row:
+        if workflow_id != engine.active_workflow_id:
+            raise HTTPException(status_code=404, detail="工作流不存在")
+        # 激活工作流尚未落库（AIGENT_PERSIST_TOPOLOGY=0 或未发生变更）：导出引擎内存态
+        return {
+            "schema": EXPORT_SCHEMA,
+            "schema_version": EXPORT_SCHEMA_VERSION,
+            "id": workflow_id,
+            "name": workflow_id,
+            "nodes": [n.model_dump() for n in engine.nodes.values()],
+            "edges": [e.model_dump() for e in engine.edges],
+            "exported_at": datetime.now().isoformat(),
+        }
+    return {
+        "schema": EXPORT_SCHEMA,
+        "schema_version": EXPORT_SCHEMA_VERSION,
+        "id": row["id"],
+        "name": row["name"],
+        "nodes": row["nodes"],
+        "edges": row["edges"],
+        "exported_at": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/v1/workflows/{workflow_id}/import")
+async def import_workflow(workflow_id: str, payload: Dict[str, Any]):
+    """导入工作流 JSON：schema 版本校验 + 节点类型白名单 + 数量上限 + 环检测，失败不改拓扑"""
+    try:
+        if payload.get("schema") != EXPORT_SCHEMA:
+            raise HTTPException(status_code=400, detail=f"schema 必须为 {EXPORT_SCHEMA}")
+        if int(payload.get("schema_version", 0)) != EXPORT_SCHEMA_VERSION:
+            raise HTTPException(status_code=400, detail=f"schema_version 必须为 {EXPORT_SCHEMA_VERSION}")
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="schema_version 非法") from exc
+
+    nodes = payload.get("nodes") or []
+    edges = payload.get("edges") or []
+    if not isinstance(nodes, list) or not isinstance(edges, list):
+        raise HTTPException(status_code=400, detail="nodes/edges 必须为数组")
+    if len(nodes) > int(os.getenv("AIGENT_MAX_NODES", "200")):
+        raise HTTPException(status_code=400, detail="节点数超过上限")
+    if len(edges) > int(os.getenv("AIGENT_MAX_EDGES", "500")):
+        raise HTTPException(status_code=400, detail="连线数超过上限")
+
+    # 类型白名单：注册表 handler key + 别名
+    allowed_types = set(engine.operator_registry._handlers) | set(_ALIASES)
+    node_ids = set()
+    for n in nodes:
+        try:
+            WorkflowNode(**n)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"节点数据非法: {n.get('id', '?')}: {exc}") from exc
+        if n.get("type") not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"未知节点类型: {n.get('type')}")
+        if n["id"] in node_ids:
+            raise HTTPException(status_code=400, detail=f"节点 id 重复: {n['id']}")
+        node_ids.add(n["id"])
+    for e in edges:
+        try:
+            NeuralEdge(**e)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"连线数据非法: {e.get('id', '?')}: {exc}") from exc
+        if e.get("source") not in node_ids or e.get("target") not in node_ids:
+            raise HTTPException(status_code=400, detail=f"连线引用不存在的节点: {e.get('id', '?')}")
+    if engine.topology_has_cycle(nodes, edges):
+        raise HTTPException(status_code=400, detail="拓扑含环，拒绝导入")
+
+    name = str(payload.get("name") or workflow_id)
+    await engine.checkpoint_store.save_workflow(workflow_id, name, nodes, edges)
+    if workflow_id == engine.active_workflow_id:
+        # 导入到当前工作流：重载内存状态并广播快照
+        await engine.reload_active_from_store()
+    await engine.append_log(f"[Workflow] 已导入工作流 {workflow_id}（{len(nodes)} 节点 / {len(edges)} 连线）")
+    return {"imported": workflow_id, "nodes": len(nodes), "edges": len(edges)}
 
 
 @app.post("/api/v1/workflow/control", response_model=WorkflowSnapshot)

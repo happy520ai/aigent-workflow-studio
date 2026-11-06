@@ -589,6 +589,42 @@ class PerfectNeuralEngine:
         self._active.cycle_layer_hit = value
 
     # ======================= T32：工作流切换 =======================
+    def topology_has_cycle(self, nodes_data: List[Dict[str, Any]], edges_data: List[Dict[str, Any]]) -> bool:
+        """T33：对任意外部拓扑数据做 Kahn 环检测（导入校验用，不触碰引擎状态）"""
+        adj: Dict[str, List[str]] = defaultdict(list)
+        indeg: Dict[str, int] = {str(n.get("id")): 0 for n in nodes_data}
+        for e in edges_data:
+            src, dst = str(e.get("source")), str(e.get("target"))
+            if src in indeg and dst in indeg:
+                adj[src].append(dst)
+                indeg[dst] += 1
+        queue = deque(k for k, v in indeg.items() if v == 0)
+        seen = 0
+        while queue:
+            cur = queue.popleft()
+            seen += 1
+            for nxt in adj[cur]:
+                indeg[nxt] -= 1
+                if indeg[nxt] == 0:
+                    queue.append(nxt)
+        return seen != len(indeg)
+
+    async def reload_active_from_store(self) -> "WorkflowSnapshot":
+        """T33：从存储重载激活工作流（导入到当前工作流后调用），并广播快照"""
+        row = await self.checkpoint_store.get_workflow_row(self.active_workflow_id)
+        if row is None:
+            raise ValueError(f"工作流不存在: {self.active_workflow_id}")
+        state = WorkflowState(current_run_id=f"run_{uuid.uuid4().hex[:6]}")
+        if row["nodes"]:
+            state.nodes = {n["id"]: WorkflowNode(**n) for n in row["nodes"]}
+        if row["edges"]:
+            state.edges = [NeuralEdge(**e) for e in row["edges"]]
+        state.latest_sandbox_html = self._active.latest_sandbox_html
+        self._workflows[self.active_workflow_id] = state
+        snap = self.get_snapshot()
+        await self.ws_manager.broadcast("workflow_snapshot", snap.model_dump())
+        return snap
+
     async def switch_workflow(self, workflow_id: str) -> "WorkflowSnapshot":
         """切换激活工作流：先持久化当前，再载入目标（不存在则 404 语义由路由处理）"""
         if workflow_id == self.active_workflow_id:
