@@ -86,7 +86,8 @@ def test_perfect_snapshot_contract(perfect_client):
 
 def test_perfect_components_search(perfect_client):
     items = perfect_client.get("/api/v1/components").json()
-    assert len(items) == 12
+    # T30 新增 2 个真实算子组件（llm_generic/http_request）：12 -> 14
+    assert len(items) == 14
     items = perfect_client.get("/api/v1/components", params={"q": "NLU"}).json()
     assert [i["id"] for i in items] == ["perc_nlu"]
     items = perfect_client.get("/api/v1/components", params={"q": "发布"}).json()

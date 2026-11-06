@@ -41,10 +41,10 @@
       "id": "M31",
       "title": "生产化 P0–P2：版本控制 + 安全加固 + 后端可靠性（关口A）",
       "goal": "按《生产化执行方案.md》完成 P0（git+基线+文档核对）、P1（鉴权/WS鉴权/DNS rebinding/限流/安全头/CSP/扫描）、P2（健康检查/SQLite稳健化/结构化日志/metrics/LLM韧性/优雅关闭/runs持久化/去假数据），关口A 三项基线全绿",
-      "status": "active",
+      "status": "done",
       "order": 5,
       "created": "2026-11-06T17:34:10.529Z",
-      "updated": "2026-11-06T17:34:33.328Z"
+      "updated": "2026-11-06T18:57:45.892Z"
     },
     {
       "id": "M32",

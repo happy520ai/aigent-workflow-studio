@@ -1,11 +1,9 @@
 # backend/perfect_engine.py
 import asyncio
-import ipaddress
 import json
 import math
 import os
 import random
-import socket
 import sqlite3
 import threading
 import time
@@ -20,6 +18,7 @@ from fastapi import WebSocket
 
 from ast_validator import FrontendASTValidator
 from llm_client import LLMClient
+from net_guard import IPPinnedTransport, resolve_and_pin_api_base  # T12 工具再导出（兼容既有导入方）
 from metrics import metrics
 from obs_logging import get_logger
 from models import (
@@ -274,80 +273,6 @@ class CheckpointStore:
         return await asyncio.to_thread(_query)
 
 
-# ======================= T12：LLM api_base 请求时 IP 固定（防 DNS rebinding） =======================
-def _looks_like_ip(host: str) -> bool:
-    try:
-        ipaddress.ip_address(host)
-        return True
-    except ValueError:
-        return False
-
-
-async def resolve_and_pin_api_base(api_base: str, allow_private: bool = False) -> str:
-    """请求前实时解析 api_base 主机名并复检全部地址，返回按首个公网 IPv4 直连的 URL。
-
-    设置接口的 SSRF 校验（validate_llm_api_base_async）与真实请求之间存在 TOCTOU：
-    攻击者可在两次解析之间把域名改指内网（DNS rebinding）。本函数在每次真实请求前
-    重新解析并校验，唯一拨号目标即本次校验通过的 IP，从根上消除该窗口。
-    抛 ValueError 时由调用方按 LLM 失败降级处理（不外呼任何地址）。
-    """
-    url = httpx.URL(api_base)
-    host = url.host
-    if not host:
-        raise ValueError("api_base 缺少主机名")
-    if _looks_like_ip(host):
-        # IP 字面量：settings 校验已把关（内网/回环），或 AIGENT_ALLOW_PRIVATE_LLM 显式放行
-        return api_base
-    addr_infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
-    pinned_ipv4: Optional[str] = None
-    for info in addr_infos:
-        ip_text = info[4][0]
-        try:
-            ip = ipaddress.ip_address(ip_text)
-        except ValueError:
-            continue
-        if not allow_private and (
-            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
-        ):
-            raise ValueError(f"api_base 指向内网/保留地址，已拒绝: {ip_text}")
-        if pinned_ipv4 is None and ip.version == 4:
-            pinned_ipv4 = ip_text
-    if pinned_ipv4 is None:
-        raise ValueError("api_base 无可用 IPv4 地址")
-    return str(url.copy_with(host=pinned_ipv4))
-
-
-class IPPinnedTransport(httpx.AsyncHTTPTransport):
-    """把请求 URL 的主机改写为已校验 IP 直连，同时保留 Host 头与 TLS SNI（证书校验不受影响）。
-
-    inner 参数供测试注入 httpx.MockTransport。
-    """
-
-    def __init__(self, pinned_ip: str, inner: Optional[httpx.AsyncBaseTransport] = None):
-        super().__init__()
-        self._pinned_ip = pinned_ip
-        self._inner = inner
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        target = request
-        host = request.url.host
-        if host and host != self._pinned_ip and not _looks_like_ip(host):
-            original_host = request.headers.get("Host", host)
-            target = httpx.Request(
-                method=request.method,
-                url=request.url.copy_with(host=self._pinned_ip),
-                headers=request.headers,
-                stream=request.stream,
-            )
-            target.extensions.update(request.extensions)
-            if request.url.scheme == "https":
-                # httpcore 扩展：按原域名做 SNI 与证书校验，仅按已校验 IP 建立连接
-                target.extensions["sni_hostname"] = original_host
-        if self._inner is not None:
-            return await self._inner.handle_async_request(target)
-        return await super().handle_async_request(target)
-
-
 class ConnectionManager:
     """全双工 WebSocket 神经突触广播中心"""
 
@@ -391,7 +316,8 @@ class PerfectNeuralEngine:
         self.ws_manager = ws_manager
         self.persist_topology = persist_topology
         self.checkpoint_store = CheckpointStore()
-        self.operator_registry = NeuralOperatorRegistry()
+        # T30：真实算子（llm_generic 等）经 provider 读取运行时 LLM 配置（设置面板热更新即时生效）
+        self.operator_registry = NeuralOperatorRegistry(llm_config_provider=lambda: self.llm_config)
         self.status: WorkflowStatus = WorkflowStatus.RUNNING
         self.selected_node_id: str = "node_ui_gen"
         self.current_run_id: str = f"run_{uuid.uuid4().hex[:6]}"
@@ -550,6 +476,8 @@ class PerfectNeuralEngine:
             ComponentItem(id="agent_intent", category="AI 智能体", category_en="Agents", name="意图分析", name_en="Intent Agent", icon="Network", theme_color="#6366f1"),
             ComponentItem(id="agent_codegen", category="AI 智能体", category_en="Agents", name="代码生成", name_en="CodeGen", icon="Code", theme_color="#6366f1"),
             ComponentItem(id="logic_transform", category="数据逻辑", category_en="Logic", name="数据转换", name_en="Transform", icon="ArrowLeftRight", theme_color="#a855f7"),
+            ComponentItem(id="llm_generic", category="AI 智能体", category_en="Agents", name="LLM 生成", name_en="LLM Generic", icon="Sparkles", theme_color="#6366f1"),
+            ComponentItem(id="http_request", category="数据逻辑", category_en="Logic", name="HTTP 请求", name_en="HTTP Request", icon="Globe", theme_color="#a855f7"),
             ComponentItem(id="logic_state", category="数据逻辑", category_en="Logic", name="状态管理", name_en="State", icon="Database", theme_color="#a855f7"),
             ComponentItem(id="fe_assemble", category="前端渲染", category_en="Frontend", name="组件装配", name_en="Assemble", icon="LayoutGrid", theme_color="#38bdf8"),
             ComponentItem(id="fe_render", category="前端渲染", category_en="Frontend", name="DOM 渲染", name_en="Render", icon="Terminal", theme_color="#38bdf8"),
