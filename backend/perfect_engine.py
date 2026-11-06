@@ -19,6 +19,7 @@ import psutil
 from fastapi import WebSocket
 
 from ast_validator import FrontendASTValidator
+from obs_logging import get_logger
 from models import (
     ComponentItem,
     ControlAction,
@@ -700,6 +701,7 @@ class PerfectNeuralEngine:
                         raw_html = resp.json()["choices"][0]["message"]["content"]
                 except Exception as exc:
                     # 不再静默吞掉：LLM 失败必须留痕后降级内置模板
+                    logger.warning(f"llm_call_failed node_id={node.id} degraded=true error={exc}")
                     await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {exc}")
                     await asyncio.sleep(0.3)
                     raw_html = self._default_sandbox_template(
@@ -880,6 +882,7 @@ class PerfectNeuralEngine:
                 break
             except Exception as exc:
                 self.loop_failure_counts["dag"] += 1  # T25：异常不吞，计数上报
+                logger.exception(f"dag_loop_error run_id={self.current_run_id} count={self.loop_failure_counts['dag']} error={exc}")
                 await self.append_log(f"[Error] Topological Executor: {exc}")
                 await asyncio.sleep(1.0)
 

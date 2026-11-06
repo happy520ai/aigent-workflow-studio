@@ -23,8 +23,11 @@ from starlette.responses import JSONResponse
 
 from ast_validator import ASTValidationReport, FrontendASTValidator
 from models import ComponentItem, ControlRequest, NeuralEdge, WorkflowNode, WorkflowSnapshot
+from obs_logging import configure_logging, get_logger, request_id_var
 from perfect_engine import ConnectionManager, PerfectNeuralEngine
 from publisher import WorkflowArtifactPublisher
+
+logger = get_logger("aigent.api")
 
 ws_manager = ConnectionManager()
 engine = PerfectNeuralEngine(
@@ -66,8 +69,11 @@ class LLMConfigRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()  # T22：结构化 JSON 日志（幂等）
+    logger.info(f"service_start version={app.version}")
     engine.start()
     yield
+    logger.info("service_stop")
     await engine.stop()
 
 
@@ -202,9 +208,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-app.add_middleware(SecurityHeadersMiddleware)
-
-
 # ======================= T13 限流与体积限制（P1 安全加固） =======================
 class TokenBucketLimiter:
     """内存令牌桶（按 key 维度限流）。asyncio 单线程内 read-modify-write 无 await，天然原子。"""
@@ -278,6 +281,30 @@ app.add_middleware(
 )
 # T14 安全头中间件注册在最后 → 位于 CORS 之下最外层，401/429 等全部响应都带安全头
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+# ======================= T22 请求日志与 X-Request-ID（P2 可观测） =======================
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """每请求生成 X-Request-ID：写回响应头并注入结构化日志（request_id 经 contextvar 传播）"""
+
+    async def dispatch(self, request: Request, call_next):
+        rid = uuid.uuid4().hex[:12]
+        ctx_token = request_id_var.set(rid)
+        t0 = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(f"http_request {request.method} {request.url.path} rid={rid} error")
+            request_id_var.reset(ctx_token)
+            raise
+        duration_ms = (time.perf_counter() - t0) * 1000
+        response.headers["X-Request-ID"] = rid
+        logger.info(f"http_request {request.method} {request.url.path} status={response.status_code} duration_ms={duration_ms:.1f} rid={rid}")
+        request_id_var.reset(ctx_token)
+        return response
+
+
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/healthz")
