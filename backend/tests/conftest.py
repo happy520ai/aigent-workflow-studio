@@ -47,3 +47,15 @@ def perfect_client():
                 break
             time.sleep(0.2)
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _clear_rate_limit_buckets():
+    """T13 限流：每个用例前后清空令牌桶，避免跨用例累计把既有用例误伤为 429"""
+    from perfect_main import strict_limiter, write_limiter
+
+    strict_limiter._buckets.clear()
+    write_limiter._buckets.clear()
+    yield
+    strict_limiter._buckets.clear()
+    write_limiter._buckets.clear()

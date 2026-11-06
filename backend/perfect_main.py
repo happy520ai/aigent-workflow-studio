@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import io
 import ipaddress
+import json
 import os
 import socket
 import time
@@ -50,6 +51,10 @@ class CreateEdgeRequest(BaseModel):
 
 class ASTValidateRequest(BaseModel):
     code: str
+
+
+AST_CODE_MAX_BYTES = 512 * 1024  # T13：/ast/validate code 上限 512KB
+CONFIG_JSON_MAX_BYTES = 64 * 1024  # T13：节点 config_json 上限 64KB
 
 
 class LLMConfigRequest(BaseModel):
@@ -178,6 +183,62 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(AdminAuthMiddleware)
 
+
+# ======================= T13 限流与体积限制（P1 安全加固） =======================
+class TokenBucketLimiter:
+    """内存令牌桶（按 key 维度限流）。asyncio 单线程内 read-modify-write 无 await，天然原子。"""
+
+    def __init__(self, rate_per_min: int, capacity: Optional[int] = None):
+        self.rate_per_min = rate_per_min
+        self.capacity = capacity if capacity is not None else max(1, rate_per_min)
+        self._buckets: Dict[str, tuple] = {}  # key -> (tokens, last_monotonic)
+
+    def allow(self, key: str) -> bool:
+        now = time.monotonic()
+        tokens, last = self._buckets.get(key, (float(self.capacity), now))
+        tokens = min(float(self.capacity), tokens + (now - last) * (self.rate_per_min / 60.0))
+        if tokens < 1.0:
+            self._buckets[key] = (tokens, now)
+            return False
+        self._buckets[key] = (tokens - 1.0, now)
+        return True
+
+
+WRITE_RATE_LIMIT_PER_MIN = int(os.getenv("AIGENT_RATE_LIMIT_PER_MIN", "60"))
+STRICT_RATE_LIMIT_PER_MIN = int(os.getenv("AIGENT_STRICT_RATE_LIMIT_PER_MIN", "10"))
+STRICT_RATE_PREFIXES = ("/api/v1/settings", "/api/v1/ast/validate", "/api/v1/publish/export-zip")
+write_limiter = TokenBucketLimiter(WRITE_RATE_LIMIT_PER_MIN)
+strict_limiter = TokenBucketLimiter(STRICT_RATE_LIMIT_PER_MIN)
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """写接口 60/min/IP（严格面 10/min/IP）：/settings、/ast/validate、export-zip。
+
+    注册在鉴权内侧、CORS 外侧：限流在令牌校验之前计数，天然抵御刷接口耗尽。
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        method = request.method.upper()
+        path = request.url.path
+        if method in ("GET", "HEAD", "OPTIONS") or path in AUTH_EXEMPT_PATHS or not path.startswith("/api/"):
+            return await call_next(request)
+        client_ip = request.client.host if request.client else "unknown"
+        limiter = (
+            strict_limiter
+            if any(path.startswith(p) for p in STRICT_RATE_PREFIXES)
+            else write_limiter
+        )
+        if not limiter.allow(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "请求过于频繁，请稍后再试"},
+                headers={"Retry-After": "60"},
+            )
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
+
 # CORS 白名单：环境变量 CORS_ORIGINS（逗号分隔），默认仅放行本地开发端口。
 # 注意 allow_credentials=False 不得与通配符 "*" 同用。
 app.add_middleware(
@@ -216,6 +277,9 @@ async def control_workflow(req: ControlRequest):
 
 @app.post("/api/v1/workflow/nodes", response_model=WorkflowNode)
 async def create_node_from_sidebar(req: AddNodeRequest):
+    # T13：节点总数上限（默认 200，AIGENT_MAX_NODES 可调）
+    if len(engine.nodes) >= int(os.getenv("AIGENT_MAX_NODES", "200")):
+        raise HTTPException(status_code=413, detail="节点总数已达上限，请先删除部分节点")
     try:
         return await engine.add_custom_node_from_sidebar(req.component_id, req.x, req.y, req.connect_from)
     except ValueError as exc:
@@ -244,6 +308,9 @@ async def update_node_position(node_id: str, req: MoveNodeRequest):
 
 @app.put("/api/v1/workflow/nodes/{node_id}/config", response_model=WorkflowNode)
 async def update_node_config(node_id: str, config_json: Dict[str, Any]):
+    # T13：config_json 体积上限 64KB
+    if len(json.dumps(config_json, ensure_ascii=False, default=str).encode("utf-8")) > CONFIG_JSON_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="config_json 超过 64KB 上限")
     if node_id not in engine.nodes:
         raise HTTPException(status_code=404, detail="Node not found")
     node = engine.nodes[node_id]
@@ -257,6 +324,9 @@ async def update_node_config(node_id: str, config_json: Dict[str, Any]):
 
 @app.post("/api/v1/workflow/edges", response_model=NeuralEdge)
 async def create_neural_edge(req: CreateEdgeRequest):
+    # T13：连线总数上限（默认 500，AIGENT_MAX_EDGES 可调）
+    if len(engine.edges) >= int(os.getenv("AIGENT_MAX_EDGES", "500")):
+        raise HTTPException(status_code=413, detail="连线总数已达上限，请先删除部分连线")
     if req.source not in engine.nodes or req.target not in engine.nodes:
         raise HTTPException(status_code=404, detail="源节点或目标节点不存在")
     if req.source == req.target:
@@ -326,6 +396,9 @@ async def delete_neural_edge(edge_id: str):
 
 @app.post("/api/v1/ast/validate", response_model=ASTValidationReport)
 async def validate_ui_ast(req: ASTValidateRequest):
+    # T13：code 体积上限 512KB
+    if len(req.code.encode("utf-8")) > AST_CODE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="code 超过 512KB 上限")
     report = FrontendASTValidator.validate_and_heal(req.code)
     engine.latest_sandbox_html = report.healed_code
     await engine.append_log(
