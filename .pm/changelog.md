@@ -2,6 +2,12 @@
 
 ## 2026-11-06 — 未知
 
+T-080 生产化 P3：核心能力补全（T30-T35）：P3 六任务完成：T30 真实算子框架（net_guard 抽出 T12 工具；llm_generic/http_request/logic_transform 真实实现+mode 如实标注+组件库 12→14 已披露）；T31 SSE 流式 node_stream + 前端实时面板；T32 多工作流（schema v4、WorkflowState 属性委托零改动隔离、切换器，独立分支合并）；T33 JSON 导入导出（schema v1+类型白名单+环检测，5 拒绝路径）；T34 ai-suggest（严格 JSON 增量+恶意输出全拒+侧栏入口，测试全 mock 不耗额度）；T35 Kahn 自动布局（纯函数+批量端点+按钮）。坑记录：从仓库根跑 pytest 会误收 backend/test_workflow_e2e.py 并污染引擎库指向——必须 cd backend。suite 194 绿 + build 217K
+
+改动文件（15）: backend/operator_registry.py, backend/net_guard.py, backend/llm_client.py, backend/perfect_engine.py, backend/perfect_main.py, backend/tests/test_real_operators.py, backend/tests/test_streaming.py, backend/tests/test_multi_workflow.py, backend/tests/test_import_export.py, backend/tests/test_ai_suggest.py, backend/tests/test_batch_positions.py, frontend/src/Workbench.tsx, frontend/src/config.ts, frontend/src/utils/layout.ts, frontend/src/components/NodeMicroWidgets.tsx
+
+## 2026-11-06 — 未知
+
 T-079 生产化 P2：后端可靠性与可观测（T20-T27）：P2 八任务全部完成：T20 healthz/readyz（免鉴权，SQLite+双循环+心跳<5s）；T21 WAL/NORMAL/busy_timeout+schema_version 显式迁移 v1→v3+写锁（T26 runs 表随 v3）；T22 obs_logging JSON 日志+X-Request-ID 中间件+SecretFilter（sk-/Bearer/X-Admin-Token/?token=+精确值兜底）；T23 /metrics Prometheus（节点/LLM/轮次直方图/WS gauge，敏感鉴权面）；T24 llm_client.py（重试退避抖动 429/5xx/超时、信号量、可配超时、degraded 徽章前后端打通）；T25 start/stop 生命周期加固（cancelling 重建+轮询等待，根治快速 lifespan 双循环全灭 flake）+503 单测；T26 runs 持久化重启不丢；T27 ECG=真实 DAG 轮延迟（归一化，前端示波器吃真实序列）。关口A：pytest 155 绿 + build 212K + verify 47:0 + 8020 实机冒烟（healthz/readyz/metrics 鉴权/安全头/JSON 日志）全过
 
 改动文件（19）: backend/perfect_main.py, backend/perfect_engine.py, backend/llm_client.py, backend/metrics.py, backend/obs_logging.py, backend/models.py, backend/tests/test_health.py, backend/tests/test_sqlite_robust.py, backend/tests/test_logging_observability.py, backend/tests/test_metrics.py, backend/tests/test_llm_client.py, backend/tests/test_lifecycle.py, backend/tests/test_runs_persistence.py, backend/tests/test_telemetry_real.py, backend/tests/test_lifecycle.py, backend/tests/test_error_isolation.py, backend/tests/test_auth_all_routes.py, frontend/src/components/NodeMicroWidgets.tsx, frontend/src/Workbench.tsx

@@ -1,5 +1,5 @@
 {
-  "seq": 109,
+  "seq": 110,
   "sessions": [
     {
       "id": "S-0001",
@@ -1887,6 +1887,47 @@
         "backend/tests/test_auth_all_routes.py": "96559544c14ddffcb18f701720c963e0e9e7a7aa3353f4937e58b633ada0e1c3",
         "frontend/src/components/NodeMicroWidgets.tsx": "d4f95d095d17540626060161794a40bcd1874c0ea97c86dbe5434c72c7058ccc",
         "frontend/src/Workbench.tsx": "6f6e580c670e25385d5a59688b4f6b0f2c96fcfb6affa607c313ec3609ba567f"
+      },
+      "next_steps": []
+    },
+    {
+      "id": "S-0110",
+      "date": "2026-11-06T19:31:49.003Z",
+      "author": "",
+      "summary": "T-080 生产化 P3：核心能力补全（T30-T35）：P3 六任务完成：T30 真实算子框架（net_guard 抽出 T12 工具；llm_generic/http_request/logic_transform 真实实现+mode 如实标注+组件库 12→14 已披露）；T31 SSE 流式 node_stream + 前端实时面板；T32 多工作流（schema v4、WorkflowState 属性委托零改动隔离、切换器，独立分支合并）；T33 JSON 导入导出（schema v1+类型白名单+环检测，5 拒绝路径）；T34 ai-suggest（严格 JSON 增量+恶意输出全拒+侧栏入口，测试全 mock 不耗额度）；T35 Kahn 自动布局（纯函数+批量端点+按钮）。坑记录：从仓库根跑 pytest 会误收 backend/test_workflow_e2e.py 并污染引擎库指向——必须 cd backend。suite 194 绿 + build 217K",
+      "files": [
+        "backend/operator_registry.py",
+        "backend/net_guard.py",
+        "backend/llm_client.py",
+        "backend/perfect_engine.py",
+        "backend/perfect_main.py",
+        "backend/tests/test_real_operators.py",
+        "backend/tests/test_streaming.py",
+        "backend/tests/test_multi_workflow.py",
+        "backend/tests/test_import_export.py",
+        "backend/tests/test_ai_suggest.py",
+        "backend/tests/test_batch_positions.py",
+        "frontend/src/Workbench.tsx",
+        "frontend/src/config.ts",
+        "frontend/src/utils/layout.ts",
+        "frontend/src/components/NodeMicroWidgets.tsx"
+      ],
+      "file_hashes": {
+        "backend/operator_registry.py": "a6303cc9c86f3192e65ecd59a7b28d728d3f6207bdf875715c52e739d3b04231",
+        "backend/net_guard.py": "3090f40ad47c815987ba23ff2f1ee1c61eb0892df088cbed177f9ad778624f13",
+        "backend/llm_client.py": "f765f39ecdc2dec218d5161dffe38593177a43b18b6732dd12067a8cad7cd506",
+        "backend/perfect_engine.py": "1b49fb61cd59065679d1035859be2fc204b6c23aced2d91cc3fa1f495037f5b6",
+        "backend/perfect_main.py": "6cf9cbc783eed09a9cb89fcc3a43834a1036c929fd292573e9c473771e667c3c",
+        "backend/tests/test_real_operators.py": "73f077ccf8f0c16cd3e6667ccdb944c378b1378392fae94f1d23041f6ee35629",
+        "backend/tests/test_streaming.py": "0e4427318290a1c383a2b3b8082fe290936e89547f71b5ed8a3ea4e68ff8969d",
+        "backend/tests/test_multi_workflow.py": "4685f76019d3bd7783884322d7d0dd3b6a3d0876cdfb10c78da1f3df41e90312",
+        "backend/tests/test_import_export.py": "d22b4b7afd67e84cb56a651916b4082c7c02f226265f2916e6a8046994d45185",
+        "backend/tests/test_ai_suggest.py": "46bbd2d91ab93b2ee31b724fd62dc23e307221fd8132c992ab85eb918ccc6f0b",
+        "backend/tests/test_batch_positions.py": "2212f130e518a02f15ed47f0bda150b4da16f45a4bab9363ee3255fec23f766a",
+        "frontend/src/Workbench.tsx": "97b25d053bf43d6841cf35caa2ff607ed269654e31355171a77d8c0381825052",
+        "frontend/src/config.ts": "38fe1043ad7d6cc50c4a1903ed3575c5efa3e7dbd194aa549a9c3f7628f7233b",
+        "frontend/src/utils/layout.ts": "5af63892321961a28eb8a5f859ed1d3f5457bfca055ef720f5c9172982c79c85",
+        "frontend/src/components/NodeMicroWidgets.tsx": "d4f95d095d17540626060161794a40bcd1874c0ea97c86dbe5434c72c7058ccc"
       },
       "next_steps": []
     }
