@@ -95,6 +95,7 @@ export default function Workbench() {
   // WebSocket 连接状态：一次建立连接，断线指数退避重连
   const [wsConnected, setWsConnected] = useState<boolean>(false);
   const [wsRetryCount, setWsRetryCount] = useState<number>(0); // T42：重连中第 N 次
+  const [wsReconnectKey, setWsReconnectKey] = useState<number>(0); // T43：令牌变更重建 WS
   const [runHistory, setRunHistory] = useState<RunRecord[]>([]);
 
   // 最新状态镜像：WS 回调与本地仿真定时器读取，避免闭包过期
@@ -118,7 +119,15 @@ export default function Workbench() {
   const handleAdminTokenChange = (value: string) => {
     setAdminTokenState(value);
     setAdminToken(value); // config.ts：sessionStorage 持久化（T11/T43）
+    setWsReconnectKey((k) => k + 1); // 令牌变更 → 携带新 ?token= 重建 WS
   };
+
+  // T43：REST 401 → 自动打开设置抽屉让用户填写令牌
+  useEffect(() => {
+    const onUnauthorized = () => setActiveMiniDrawer('settings');
+    window.addEventListener('aigent:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('aigent:unauthorized', onUnauthorized);
+  }, []);
 
   // ======================= T32(32c)：多工作流切换器 =======================
   const refreshWorkflows = useCallback(async () => {
@@ -296,6 +305,7 @@ export default function Workbench() {
     nodesRef,
     projectStatusRef,
     wsConnectedRef,
+    reconnectKey: wsReconnectKey,
   });
 
   // ==================== 控制指令（运行/暂停/调试/重置） ====================

@@ -38,6 +38,8 @@ export interface WorkflowSocketHandlers {
   nodesRef: React.MutableRefObject<WorkflowNode[]>;
   projectStatusRef: React.MutableRefObject<ProjectStatus>;
   wsConnectedRef: React.MutableRefObject<boolean>;
+  /** T43：令牌变更时递增以强制重建 WS 连接（新连接携带新 ?token=） */
+  reconnectKey?: number;
 }
 
 export function useWorkflowSocket(handlers: WorkflowSocketHandlers): void {
@@ -129,7 +131,7 @@ export function useWorkflowSocket(handlers: WorkflowSocketHandlers): void {
       if (moduleWs === ws) moduleWs = null;
       clearInterval(fallbackTimer);
     };
-    // 生命周期型 effect：仅挂载时建立（快照合并经 refs 读取最新态）
+    // 生命周期型 effect：挂载与 reconnectKey 变化时重建（快照合并经 refs 读取最新态）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handlers.reconnectKey ?? 0]);
 }

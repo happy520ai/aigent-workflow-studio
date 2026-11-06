@@ -16,9 +16,10 @@ async function parseErrorDetail(res: Response, fallback: string): Promise<string
 async function jsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
   if (!res.ok) {
     const detail = await parseErrorDetail(res, fallback);
-    // T42：REST 失败统一给可读 toast；401 明确指向令牌入口
+    // T42/T43：REST 失败统一给可读 toast；401 明确指向令牌入口并广播事件（Workbench 自动打开设置抽屉）
     if (res.status === 401) {
       emitToast('需要管理令牌：请在「大模型设置」抽屉中填写', 'error');
+      window.dispatchEvent(new CustomEvent('aigent:unauthorized'));
     } else {
       emitToast(`${fallback}：${detail}`, 'error');
     }
