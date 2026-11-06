@@ -9,6 +9,7 @@ import threading
 import time
 import uuid
 from collections import defaultdict, deque
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
@@ -58,8 +59,8 @@ class CheckpointStore:
     # 断点库上限：超出后按时间倒序剪枝，防止长时间运行撑爆磁盘
     CHECKPOINT_MAX = int(os.getenv("CHECKPOINT_MAX", "2000"))
     # T21：schema 版本。v1=基线（checkpoints+topology）；v2=补 topology_json 列；
-    # v3=runs 运行记录持久化表（T26，重启不丢）
-    SCHEMA_VERSION = 3
+    # v3=runs 运行记录持久化表（T26，重启不丢）；v4=workflows 多工作流表 + checkpoints.workflow_id（T32）
+    SCHEMA_VERSION = 4
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         # db_path 缺省时优先取环境变量 AIGENT_DB_PATH，再回落到工作目录默认库
@@ -111,6 +112,22 @@ class CheckpointStore:
                 )
                 """
             )
+        # v2 → v4：workflows 多工作流表 + checkpoints.workflow_id（T32）
+        if current < 4:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workflows (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    nodes_json TEXT NOT NULL,
+                    edges_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            ckpt_cols = [r[1] for r in conn.execute("PRAGMA table_info(checkpoints)").fetchall()]
+            if "workflow_id" not in ckpt_cols:
+                conn.execute("ALTER TABLE checkpoints ADD COLUMN workflow_id TEXT DEFAULT ''")
 
     def _init_db(self) -> None:
         with SQLITE_WRITE_LOCK:
@@ -132,6 +149,7 @@ class CheckpointStore:
         state_payload: Dict[str, Any],
         generated_code: str,
         topology: Optional[Dict[str, Any]] = None,
+        workflow_id: str = "",
     ) -> str:
         checkpoint_id = f"ckpt_{uuid.uuid4().hex[:8]}"
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
@@ -144,10 +162,10 @@ class CheckpointStore:
                     conn.execute(
                         """
                         INSERT INTO checkpoints
-                            (checkpoint_id, run_id, node_id, timestamp, state_payload, generated_code, topology_json)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                            (checkpoint_id, run_id, node_id, timestamp, state_payload, generated_code, topology_json, workflow_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (checkpoint_id, run_id, node_id, ts, payload_str, generated_code, topology_str),
+                        (checkpoint_id, run_id, node_id, ts, payload_str, generated_code, topology_str, workflow_id),
                     )
                     # 断点剪枝：只保留最近 CHECKPOINT_MAX 条
                     conn.execute(
@@ -224,6 +242,71 @@ class CheckpointStore:
 
         await asyncio.to_thread(_insert)
 
+    # ======================= T32：多工作流持久化 CRUD =======================
+    async def save_workflow(self, workflow_id: str, name: str, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> None:
+        nodes_str = json.dumps(nodes, ensure_ascii=False)
+        edges_str = json.dumps(edges, ensure_ascii=False)
+
+        def _upsert() -> None:
+            with SQLITE_WRITE_LOCK:
+                with sqlite_connect(self.db_path) as conn:
+                    conn.execute(
+                        """
+                        INSERT INTO workflows (id, name, nodes_json, edges_json, updated_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            name = excluded.name,
+                            nodes_json = excluded.nodes_json,
+                            edges_json = excluded.edges_json,
+                            updated_at = excluded.updated_at
+                        """,
+                        (workflow_id, name, nodes_str, edges_str, datetime.now().isoformat()),
+                    )
+                    conn.commit()
+
+        await asyncio.to_thread(_upsert)
+
+    async def list_workflows(self) -> List[Dict[str, Any]]:
+        def _query() -> List[Dict[str, Any]]:
+            with sqlite_connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT id, name, updated_at FROM workflows ORDER BY updated_at DESC"
+                ).fetchall()
+                return [dict(r) for r in rows]
+
+        return await asyncio.to_thread(_query)
+
+    async def get_workflow_row(self, workflow_id: str) -> Optional[Dict[str, Any]]:
+        def _query() -> Optional[Dict[str, Any]]:
+            with sqlite_connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT * FROM workflows WHERE id = ?",
+                    (workflow_id,),
+                ).fetchone()
+                if row is None:
+                    return None
+                return {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "nodes": json.loads(row["nodes_json"]),
+                    "edges": json.loads(row["edges_json"]),
+                    "updated_at": row["updated_at"],
+                }
+
+        return await asyncio.to_thread(_query)
+
+    async def delete_workflow_row(self, workflow_id: str) -> bool:
+        def _delete() -> bool:
+            with SQLITE_WRITE_LOCK:
+                with sqlite_connect(self.db_path) as conn:
+                    cur = conn.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
+                    conn.commit()
+                    return cur.rowcount > 0
+
+        return await asyncio.to_thread(_delete)
+
     async def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
         """T26：按时间倒序读运行记录（与内存 run_history 行结构兼容：round_id/started_at/finished_at/nodes）"""
 
@@ -268,6 +351,7 @@ class CheckpointStore:
                     "state_payload": json.loads(row["state_payload"]),
                     "generated_code": row["generated_code"],
                     "topology_json": json.loads(row["topology_json"]) if row["topology_json"] else None,
+                    "workflow_id": row["workflow_id"] if "workflow_id" in row.keys() else "",
                 }
 
         return await asyncio.to_thread(_query)
@@ -309,8 +393,38 @@ class ConnectionManager:
             self.active_connections.discard(ws)
 
 
+@dataclass
+class WorkflowState:
+    """T32：单个工作流的隔离状态（节点/连线/总线/输出/运行记录/断点游标）"""
+
+    nodes: Dict[str, "WorkflowNode"] = field(default_factory=dict)
+    edges: List["NeuralEdge"] = field(default_factory=list)
+    shared_memory_bus: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "last_event": "USER_CLICK_GENERATE_DASHBOARD",
+            "intent": "create_cyber_analytics_card",
+            "co_agent_review": "PASS_WITH_99.2%_CONFIDENCE",
+            "dom_hydration_status": "READY",
+        }
+    )
+    node_outputs: Dict[str, Any] = field(default_factory=dict)
+    run_history: deque = field(default_factory=lambda: deque(maxlen=20))
+    recent_executions: deque = field(default_factory=lambda: deque(maxlen=50))
+    selected_node_id: str = "node_ui_gen"
+    current_run_id: str = ""
+    latest_sandbox_html: str = ""
+    round_seq: int = 0
+    cycle_layer_hit: bool = False
+
+
 class PerfectNeuralEngine:
-    """集成动态 DAG 拓扑编译、12 算子内核、AST 自动自愈与 SQLite 时间旅行的终极引擎"""
+    """集成动态 DAG 拓扑编译、12 算子内核、AST 自动自愈与 SQLite 时间旅行的终极引擎。
+
+    T32：引擎承载多个工作流（WorkflowState），所有既有属性（nodes/edges/shared_memory_bus…）
+    以 property 委托到「当前激活」工作流——存量代码零改动即可工作，多工作流按 id 隔离。
+    """
+
+    DEFAULT_WORKFLOW_ID = "default"
 
     def __init__(self, ws_manager: ConnectionManager, persist_topology: bool = False) -> None:
         self.ws_manager = ws_manager
@@ -319,8 +433,6 @@ class PerfectNeuralEngine:
         # T30：真实算子（llm_generic 等）经 provider 读取运行时 LLM 配置（设置面板热更新即时生效）
         self.operator_registry = NeuralOperatorRegistry(llm_config_provider=lambda: self.llm_config)
         self.status: WorkflowStatus = WorkflowStatus.RUNNING
-        self.selected_node_id: str = "node_ui_gen"
-        self.current_run_id: str = f"run_{uuid.uuid4().hex[:6]}"
 
         # 运行时大模型配置（可通过前端设置面板动态热更新）
         self.llm_config: Dict[str, str] = {
@@ -329,28 +441,19 @@ class PerfectNeuralEngine:
             "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
         }
 
-        self.latest_sandbox_html: str = self._default_sandbox_template("初始化智能体监控面板 v2.8")
-        self.shared_memory_bus: Dict[str, Any] = {
-            "last_event": "USER_CLICK_GENERATE_DASHBOARD",
-            "intent": "create_cyber_analytics_card",
-            "co_agent_review": "PASS_WITH_99.2%_CONFIDENCE",
-            "dom_hydration_status": "READY",
-        }
-
         self._pause_gate = asyncio.Event()
         self._pause_gate.set()
         self._debug_mode: bool = False
         self._debug_step_gate = asyncio.Event()
 
-        # 数据流：每个节点的最近输出，供下游节点经连线消费（数据沿边流动）
-        self.node_outputs: Dict[str, Any] = {}
-        # 运行记录：每轮 DAG 执行的完整档案（错误隔离与 GET /runs 数据源）
-        self.run_history: deque = deque(maxlen=20)
-        # 最近 50 次节点执行统计窗口（雷达图真实指标推导来源）
-        self._recent_executions: deque = deque(maxlen=50)
-        # 环路兜底命中标志：compile_topological_layers 命中反馈层时置位，每轮至多告警一次
-        self._cycle_layer_hit: bool = False
-        self._round_seq: int = 0
+        # T32：多工作流状态容器与激活指针
+        self._workflows: Dict[str, WorkflowState] = {}
+        self.active_workflow_id: str = self.DEFAULT_WORKFLOW_ID
+        self._workflows[self.DEFAULT_WORKFLOW_ID] = WorkflowState(
+            current_run_id=f"run_{uuid.uuid4().hex[:6]}",
+            latest_sandbox_html=self._default_sandbox_template("初始化智能体监控面板 v2.8"),
+        )
+
         # T27：ECG 波形的数据源改为真实指标——最近一轮 DAG 总耗时（ms），遥测每 0.5s 归一化采样
         self.last_round_latency_ms: float = 0.0
 
@@ -385,26 +488,150 @@ class PerfectNeuralEngine:
         ]
 
         self.components: List[ComponentItem] = self._init_components()
-        self.nodes: Dict[str, WorkflowNode] = self._init_nodes()
-        self.edges: List[NeuralEdge] = self._init_edges()
+        self.nodes = self._init_nodes()  # 经 property 写入激活工作流
+        self.edges = self._init_edges()
 
-        # 拓扑持久化：启动时从 SQLite 还原上次保存的节点与连线（失败则保留默认拓扑）
+        # 拓扑持久化：启动时从 SQLite workflows 表还原（旧 topology 表自动迁移为 default）
         if self.persist_topology:
             self._load_topology_sync()
 
+    # ======================= T32：激活工作流委托属性（存量代码零改动） =======================
+    @property
+    def _active(self) -> WorkflowState:
+        return self._workflows[self.active_workflow_id]
+
+    @property
+    def nodes(self) -> Dict[str, "WorkflowNode"]:
+        return self._active.nodes
+
+    @nodes.setter
+    def nodes(self, value: Dict[str, "WorkflowNode"]) -> None:
+        self._active.nodes = value
+
+    @property
+    def edges(self) -> List["NeuralEdge"]:
+        return self._active.edges
+
+    @edges.setter
+    def edges(self, value: List["NeuralEdge"]) -> None:
+        self._active.edges = value
+
+    @property
+    def shared_memory_bus(self) -> Dict[str, Any]:
+        return self._active.shared_memory_bus
+
+    @shared_memory_bus.setter
+    def shared_memory_bus(self, value: Dict[str, Any]) -> None:
+        self._active.shared_memory_bus = value
+
+    @property
+    def node_outputs(self) -> Dict[str, Any]:
+        return self._active.node_outputs
+
+    @node_outputs.setter
+    def node_outputs(self, value: Dict[str, Any]) -> None:
+        self._active.node_outputs = value
+
+    @property
+    def run_history(self) -> deque:
+        return self._active.run_history
+
+    @run_history.setter
+    def run_history(self, value: deque) -> None:
+        self._active.run_history = value
+
+    @property
+    def _recent_executions(self) -> deque:
+        return self._active.recent_executions
+
+    @_recent_executions.setter
+    def _recent_executions(self, value: deque) -> None:
+        self._active.recent_executions = value
+
+    @property
+    def selected_node_id(self) -> str:
+        return self._active.selected_node_id
+
+    @selected_node_id.setter
+    def selected_node_id(self, value: str) -> None:
+        self._active.selected_node_id = value
+
+    @property
+    def current_run_id(self) -> str:
+        return self._active.current_run_id
+
+    @current_run_id.setter
+    def current_run_id(self, value: str) -> None:
+        self._active.current_run_id = value
+
+    @property
+    def latest_sandbox_html(self) -> str:
+        return self._active.latest_sandbox_html
+
+    @latest_sandbox_html.setter
+    def latest_sandbox_html(self, value: str) -> None:
+        self._active.latest_sandbox_html = value
+
+    @property
+    def _round_seq(self) -> int:
+        return self._active.round_seq
+
+    @_round_seq.setter
+    def _round_seq(self, value: int) -> None:
+        self._active.round_seq = value
+
+    @property
+    def _cycle_layer_hit(self) -> bool:
+        return self._active.cycle_layer_hit
+
+    @_cycle_layer_hit.setter
+    def _cycle_layer_hit(self, value: bool) -> None:
+        self._active.cycle_layer_hit = value
+
+    # ======================= T32：工作流切换 =======================
+    async def switch_workflow(self, workflow_id: str) -> "WorkflowSnapshot":
+        """切换激活工作流：先持久化当前，再载入目标（不存在则 404 语义由路由处理）"""
+        if workflow_id == self.active_workflow_id:
+            return self.get_snapshot()
+        row = await self.checkpoint_store.get_workflow_row(workflow_id)
+        if row is None:
+            raise ValueError(f"工作流不存在: {workflow_id}")
+        await self.save_topology()
+        state = self._workflows.get(workflow_id)
+        if state is None:
+            state = WorkflowState(current_run_id=f"run_{uuid.uuid4().hex[:6]}")
+            if row["nodes"]:
+                state.nodes = {n["id"]: WorkflowNode(**n) for n in row["nodes"]}
+            if row["edges"]:
+                state.edges = [NeuralEdge(**e) for e in row["edges"]]
+            state.latest_sandbox_html = self._default_sandbox_template(f"工作流 {row['name']}")
+            self._workflows[workflow_id] = state
+        self.active_workflow_id = workflow_id
+        self.status = WorkflowStatus.RUNNING
+        self._debug_mode = False
+        self._pause_gate.set()
+        await self.append_log(f"[Workflow] 已切换到工作流 {workflow_id}（{len(state.nodes)} 节点）")
+        snap = self.get_snapshot()
+        await self.ws_manager.broadcast("workflow_snapshot", snap.model_dump())
+        return snap
+
     def _save_topology_sync(self) -> None:
-        """同步写拓扑单行表（供 asyncio.to_thread 调度）"""
+        """T32：同步持久化激活工作流到 workflows 表（供 asyncio.to_thread 调度）"""
         with SQLITE_WRITE_LOCK:  # T21：写串行化
             with sqlite_connect(self.checkpoint_store.db_path) as conn:
                 conn.execute(
                     """
-                    INSERT INTO topology (id, nodes_json, edges_json, updated_at) VALUES (1, ?, ?, ?)
+                    INSERT INTO workflows (id, name, nodes_json, edges_json, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
                         nodes_json = excluded.nodes_json,
                         edges_json = excluded.edges_json,
                         updated_at = excluded.updated_at
                     """,
                     (
+                        self.active_workflow_id,
+                        self.active_workflow_id,
                         json.dumps([n.model_dump() for n in self.nodes.values()], ensure_ascii=False),
                         json.dumps([e.model_dump() for e in self.edges], ensure_ascii=False),
                         datetime.now().isoformat(),
@@ -422,26 +649,70 @@ class PerfectNeuralEngine:
             await self.append_log(f"[Warn] 拓扑持久化失败: {exc}")
 
     def _load_topology_sync(self) -> None:
-        """启动时同步还原拓扑（__init__ 内可直接同步读）"""
+        """T32：启动时同步还原激活工作流（workflows 表；旧 topology 表自动迁移为 default）"""
         try:
             with sqlite_connect(self.checkpoint_store.db_path) as conn:
-                has_table = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='topology'"
+                row = conn.execute(
+                    "SELECT nodes_json, edges_json FROM workflows WHERE id = ?",
+                    (self.active_workflow_id,),
                 ).fetchone()
-                if not has_table:
-                    return
-                row = conn.execute("SELECT nodes_json, edges_json FROM topology WHERE id = 1").fetchone()
-            if not row:
-                return
+                if row is None:
+                    # 旧库迁移：topology 单行表 → workflows.default
+                    has_topology = conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='topology'"
+                    ).fetchone()
+                    legacy = (
+                        conn.execute("SELECT nodes_json, edges_json FROM topology WHERE id = 1").fetchone()
+                        if has_topology
+                        else None
+                    )
+                    if legacy is not None:
+                        conn.execute(
+                            """
+                            INSERT INTO workflows (id, name, nodes_json, edges_json, updated_at)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET nodes_json = excluded.nodes_json, edges_json = excluded.edges_json
+                            """,
+                            (
+                                self.DEFAULT_WORKFLOW_ID,
+                                "默认工作流",
+                                legacy[0],
+                                legacy[1],
+                                datetime.now().isoformat(),
+                            ),
+                        )
+                        conn.commit()
+                        row = conn.execute(
+                            "SELECT nodes_json, edges_json FROM workflows WHERE id = ?",
+                            (self.active_workflow_id,),
+                        ).fetchone()
+                    else:
+                        # 全新库：把当前内存默认拓扑作为 default 落库
+                        conn.execute(
+                            """
+                            INSERT INTO workflows (id, name, nodes_json, edges_json, updated_at)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET nodes_json = excluded.nodes_json, edges_json = excluded.edges_json
+                            """,
+                            (
+                                self.active_workflow_id,
+                                self.active_workflow_id,
+                                json.dumps([n.model_dump() for n in self.nodes.values()], ensure_ascii=False),
+                                json.dumps([e.model_dump() for e in self.edges], ensure_ascii=False),
+                                datetime.now().isoformat(),
+                            ),
+                        )
+                        conn.commit()
+                        return
             nodes_data = json.loads(row[0])
             edges_data = json.loads(row[1])
             if nodes_data:
                 self.nodes = {n["id"]: WorkflowNode(**n) for n in nodes_data}
             if edges_data:
                 self.edges = [NeuralEdge(**e) for e in edges_data]
-        except Exception:
+        except Exception as exc:
             # 还原失败（库损坏/契约变更）时保留默认拓扑，不阻断启动
-            pass
+            logger.warning(f"topology_restore_failed workflow_id={self.active_workflow_id} error={exc}")
 
     def _default_sandbox_template(self, title: str) -> str:
         ts = datetime.now().strftime("%H:%M:%S")
@@ -776,6 +1047,7 @@ class PerfectNeuralEngine:
                 "nodes": [n.model_dump() for n in self.nodes.values()],
                 "edges": [e.model_dump() for e in self.edges],
             },
+            workflow_id=self.active_workflow_id,
         )
 
         await self.append_log(f"Agent initialized: {node.confidence}%...")
@@ -1027,6 +1299,7 @@ class PerfectNeuralEngine:
     def get_snapshot(self) -> WorkflowSnapshot:
         return WorkflowSnapshot(
             version="v2.8",
+            workflow_id=self.active_workflow_id,
             project_status=self.status,
             selected_node_id=self.selected_node_id,
             nodes=list(self.nodes.values()),

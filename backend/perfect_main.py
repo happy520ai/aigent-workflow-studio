@@ -347,6 +347,58 @@ async def get_workflow():
     return engine.get_snapshot()
 
 
+# ======================= T32：多工作流 CRUD（32a：表与 CRUD） =======================
+class CreateWorkflowRequest(BaseModel):
+    id: Optional[str] = None
+    name: str
+
+
+@app.get("/api/v1/workflows")
+async def list_workflows():
+    """列出全部工作流（不含拓扑正文）"""
+    return await engine.checkpoint_store.list_workflows()
+
+
+@app.post("/api/v1/workflows")
+async def create_workflow(req: CreateWorkflowRequest):
+    wf_id = (req.id or f"wf_{uuid.uuid4().hex[:6]}").strip()
+    if not wf_id or len(wf_id) > 64:
+        raise HTTPException(status_code=400, detail="workflow id 非法（1~64 字符）")
+    existing = await engine.checkpoint_store.get_workflow_row(wf_id)
+    if existing:
+        raise HTTPException(status_code=409, detail=f"工作流已存在: {wf_id}")
+    await engine.checkpoint_store.save_workflow(wf_id, req.name, [], [])
+    return {"id": wf_id, "name": req.name}
+
+
+@app.get("/api/v1/workflows/{workflow_id}")
+async def get_workflow_detail(workflow_id: str):
+    row = await engine.checkpoint_store.get_workflow_row(workflow_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="工作流不存在")
+    return row
+
+
+@app.delete("/api/v1/workflows/{workflow_id}")
+async def delete_workflow(workflow_id: str):
+    if workflow_id == "default":
+        raise HTTPException(status_code=400, detail="默认工作流不可删除")
+    deleted = await engine.checkpoint_store.delete_workflow_row(workflow_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="工作流不存在")
+    await engine.append_log(f"[Workflow] 已删除工作流 {workflow_id}")
+    return {"deleted": workflow_id}
+
+
+@app.post("/api/v1/workflows/{workflow_id}/activate", response_model=WorkflowSnapshot)
+async def activate_workflow(workflow_id: str):
+    """T32(32b)：切换激活工作流（引擎保存当前 → 载入目标 → 广播快照）"""
+    try:
+        return await engine.switch_workflow(workflow_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/api/v1/workflow/control", response_model=WorkflowSnapshot)
 async def control_workflow(req: ControlRequest):
     return await engine.handle_control(req.action)
@@ -495,6 +547,13 @@ async def restore_time_travel_checkpoint(checkpoint_id: str):
     target = await engine.checkpoint_store.get_checkpoint(checkpoint_id)
     if not target:
         raise HTTPException(status_code=404, detail="未找到对应的断点快照")
+    # T32：断点归属于其创建时的工作流；跨工作流还原被拒绝（隔离性）
+    ckpt_wf = target.get("workflow_id") or "default"
+    if ckpt_wf not in ("", engine.active_workflow_id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"断点属于工作流 {ckpt_wf}，与当前激活工作流 {engine.active_workflow_id} 不一致",
+        )
 
     engine.shared_memory_bus = target["state_payload"]
     engine.latest_sandbox_html = target["generated_code"]

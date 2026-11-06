@@ -82,6 +82,7 @@ class SystemTelemetry(BaseModel):
 
 class WorkflowSnapshot(BaseModel):
     version: str = "v2.8"
+    workflow_id: str = "default"  # T32：快照所属工作流（前端切换器数据源）
     project_status: WorkflowStatus
     selected_node_id: str
     nodes: List[WorkflowNode]
