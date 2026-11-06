@@ -10,3 +10,6 @@ __pycache__/
 backend/data/
 .pm/runtime*
 _server*.log
+playwright-report/
+test-results/
+e2e-artifacts/
