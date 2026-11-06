@@ -19,6 +19,7 @@ import psutil
 from fastapi import WebSocket
 
 from ast_validator import FrontendASTValidator
+from llm_client import LLMClient
 from metrics import metrics
 from obs_logging import get_logger
 from models import (
@@ -666,54 +667,51 @@ class PerfectNeuralEngine:
         if node.type in ("ui_generation", "agent_codegen"):
             raw_html = ""
             if api_key:
-                try:
-                    # T12：请求前实时解析复检 + IP 固定直连，消除设置校验与真实请求间的 DNS rebinding 窗口
+                # T24：经 LLMClient 走重试/信号量/可配超时；T12 的解析复检按尝试即时进行
+                llm = LLMClient()
+
+                async def _make_transport() -> httpx.AsyncBaseTransport:
                     allow_private_llm = os.getenv("AIGENT_ALLOW_PRIVATE_LLM", "") == "1"
                     pinned_url = await resolve_and_pin_api_base(
                         self.llm_config["api_base"], allow_private=allow_private_llm
                     )
-                    pinned_ip = httpx.URL(pinned_url).host
-                    # 禁止跟随重定向：防止 SSRF 借 30x 跳转绕过 api_base 校验
-                    # 超时需覆盖慢速模型的长文本生成（如讯飞 4.0Ultra 生成 1024 tokens 约 10~15s），
-                    # 10s 会导致 ReadTimeout 被静默降级为内置模板
-                    async with httpx.AsyncClient(
-                        timeout=60.0,
-                        follow_redirects=False,
-                        transport=IPPinnedTransport(pinned_ip=pinned_ip),
-                    ) as client:
-                        resp = await client.post(
-                            f"{self.llm_config['api_base']}/chat/completions",
-                            headers={"Authorization": f"Bearer {api_key}"},
-                            json={
-                                "model": self.llm_config["model"],
-                                "messages": [
-                                    {"role": "system", "content": "Generate a compact Tailwind HTML card snippet for a cyberpunk AI telemetry widget. Return pure HTML only."},
-                                    {
-                                        "role": "user",
-                                        "content": json.dumps(
-                                            {"config": node.config_json, "inputs": inputs},
-                                            ensure_ascii=False,
-                                        ),
-                                    },
-                                ],
-                                "max_tokens": 1024,
-                            },
-                        )
-                        resp.raise_for_status()
-                        raw_html = resp.json()["choices"][0]["message"]["content"]
-                        metrics.observe_llm("success")
-                except Exception as exc:
-                    # 不再静默吞掉：LLM 失败必须留痕后降级内置模板
+                    return IPPinnedTransport(pinned_ip=httpx.URL(pinned_url).host)
+
+                result = await llm.chat_completion(
+                    api_base=self.llm_config["api_base"],
+                    api_key=api_key,
+                    model=self.llm_config["model"],
+                    messages=[
+                        {"role": "system", "content": "Generate a compact Tailwind HTML card snippet for a cyberpunk AI telemetry widget. Return pure HTML only."},
+                        {
+                            "role": "user",
+                            "content": json.dumps(
+                                {"config": node.config_json, "inputs": inputs},
+                                ensure_ascii=False,
+                            ),
+                        },
+                    ],
+                    max_tokens=1024,
+                    transport_factory=_make_transport,
+                )
+                if result["ok"]:
+                    raw_html = result["content"]
+                    node.degraded = False
+                    metrics.observe_llm("success")
+                else:
+                    # 不再静默吞掉：LLM 失败必须留痕后降级内置模板（degraded 徽章对前端可见）
+                    node.degraded = True
                     metrics.observe_llm("failure")
                     metrics.observe_llm("degraded")
-                    logger.warning(f"llm_call_failed node_id={node.id} degraded=true error={exc}")
-                    await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {exc}")
+                    logger.warning(f"llm_call_failed node_id={node.id} attempts={result['attempts']} degraded=true error={result['error']}")
+                    await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {result['error']}")
                     await asyncio.sleep(0.3)
                     raw_html = self._default_sandbox_template(
                         f"AI 生成组件 #{random.randint(100, 999)} ({node.config_json.get('name', 'Agent')})"
                     )
             else:
                 await asyncio.sleep(random.uniform(0.28, 0.5))
+                node.degraded = False
                 raw_html = self._default_sandbox_template(
                     f"实时神经元视图 · 置信度 {node.confidence}%"
                 )

@@ -1315,6 +1315,14 @@ export default function Workbench() {
                       <span className="px-1.5 py-0.5 text-[9px] rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono">
                         Error
                       </span>
+                    ) : (node as { degraded?: boolean }).degraded ? (
+                      // T24：LLM 降级徽章（后端 node.degraded 置位时可见）
+                      <span
+                        className="px-1.5 py-0.5 text-[9px] rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono"
+                        title="LLM 调用失败，已降级为内置模板"
+                      >
+                        降级
+                      </span>
                     ) : node.type === 'dom_renderer' ? (
                       <span className="px-1.5 py-0.5 text-[9px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
                         Success

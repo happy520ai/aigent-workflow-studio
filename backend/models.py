@@ -60,6 +60,7 @@ class WorkflowNode(BaseModel):
     latency_ms: int = 8
     config_json: Dict[str, Any]
     last_error: Optional[str] = None  # 单节点错误隔离：最近一次执行失败的异常信息
+    degraded: bool = False  # T24：LLM 调用降级（用内置模板兜底）时置位，前端显示徽章
 
 
 class NeuralEdge(BaseModel):
