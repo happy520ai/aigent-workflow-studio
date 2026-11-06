@@ -338,6 +338,7 @@ export default function Workbench() {
   const [adminToken, setAdminToken] = useState<string>(() => sessionStorage.getItem('aigent_admin_token') ?? '');
 
   const [cpuSeries, setCpuSeries] = useState<number[]>([35, 58, 28, 72, 40, 63, 34, 76, 48, 65, 39, 58]);
+  const [ecgSeries, setEcgSeries] = useState<number[]>([]);
   const [memSeries, setMemSeries] = useState<number[]>([62, 64, 63, 66, 64, 67, 65, 68, 66, 67, 65, 68]);
   const [radar, setRadar] = useState<RadarMetrics>({
     radar_perception: 92,
@@ -480,6 +481,7 @@ export default function Workbench() {
           setCpuSeries(msg.data.cpu_history);
           setMemSeries(msg.data.memory_history);
           setRadar(msg.data.radar_metrics);
+          setEcgSeries(msg.data.ecg_waveform ?? []); // T27：真实 DAG 轮延迟序列
           // A8 遥测瘦身：telemetry_tick 不再携带 shared_memory_bus
         } else if (msg.event === 'node_update') {
           const n = msg.data.node;
@@ -1337,7 +1339,7 @@ export default function Workbench() {
 
                   {/* 挂载 60FPS 节点内部微动效 */}
                   {node.type === 'event_capturer' && (
-                    <PhosphorECGWidget isRunning={projectStatus === '运行中'} />
+                    <PhosphorECGWidget isRunning={projectStatus === '运行中'} waveform={ecgSeries} />
                   )}
 
                   {node.type === 'intent_agent' && (

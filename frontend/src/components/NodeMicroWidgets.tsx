@@ -1,9 +1,13 @@
 // frontend/src/components/NodeMicroWidgets.tsx
 import React, { useEffect, useRef } from 'react';
 
-// 1. 【事件捕获】节点内部：60FPS 荧光余晖心电/脑电示波器
-export const PhosphorECGWidget: React.FC<{ isRunning: boolean }> = ({ isRunning }) => {
+// 1. 【事件捕获】节点内部：60FPS 荧光余晖示波器
+// T27：waveform 存在时渲染真实指标（后端 ecg_waveform = 最近一轮 DAG 总耗时，归一化 0~1）；
+// 否则回落到本地合成动画（离线仿真模式）。
+export const PhosphorECGWidget: React.FC<{ isRunning: boolean; waveform?: number[] }> = ({ isRunning, waveform }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const waveRef = useRef<number[] | undefined>(waveform);
+  waveRef.current = waveform;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -18,10 +22,24 @@ export const PhosphorECGWidget: React.FC<{ isRunning: boolean }> = ({ isRunning 
     const points: number[] = Array(66).fill(height / 2);
 
     const render = () => {
-      if (isRunning) {
+      const liveWave = waveRef.current;
+      if (liveWave && liveWave.length > 0) {
+        // 真实数据路径：把 ≤20 个归一化采样线性拉伸到 66 个画布点（0 在中线，1 顶格）
+        const src = liveWave.slice(-20);
+        points.length = 0;
+        for (let i = 0; i < 66; i++) {
+          const t = (i / 65) * (src.length - 1);
+          const lo = Math.floor(t);
+          const hi = Math.ceil(t);
+          const vLo = src[lo] ?? 0;
+          const vHi = src[hi] ?? vLo;
+          const v = Math.max(0, Math.min(1, vLo + (vHi - vLo) * (t - lo)));
+          points.push(height - 4 - v * (height - 10));
+        }
+      } else if (isRunning) {
         phase += 0.22;
         const cycle = phase % (Math.PI * 2);
-        // 模拟真实 QRS 心电脉冲尖峰与高频神经微颤
+        // 本地合成模式（离线仿真回落）：QRS 形态脉冲
         let val = Math.sin(phase * 2.5) * 2.2 + (Math.random() - 0.5) * 2.5;
         if (cycle > 2.8 && cycle < 3.1) val = -13; // R 波主尖峰
         else if (cycle >= 3.1 && cycle < 3.35) val = 9; // S 波下探

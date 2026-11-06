@@ -425,6 +425,8 @@ class PerfectNeuralEngine:
         # 环路兜底命中标志：compile_topological_layers 命中反馈层时置位，每轮至多告警一次
         self._cycle_layer_hit: bool = False
         self._round_seq: int = 0
+        # T27：ECG 波形的数据源改为真实指标——最近一轮 DAG 总耗时（ms），遥测每 0.5s 归一化采样
+        self.last_round_latency_ms: float = 0.0
 
         self._engine_task: Optional[asyncio.Task] = None
         self._telemetry_task: Optional[asyncio.Task] = None
@@ -435,7 +437,7 @@ class PerfectNeuralEngine:
 
         self.cpu_history: List[float] = [32.0, 45.0, 28.0, 64.0, 41.0, 53.0, 38.0, 62.0, 49.0, 55.0]
         self.memory_history: List[float] = [58.0, 58.5, 59.2, 58.8, 60.1, 59.5, 60.4, 60.0, 61.2, 60.8]
-        self.ecg_waveform: List[float] = [0.0, 0.2, -0.15, 0.85, -0.45, 0.3, 0.0, 0.05, -0.05, 0.1]
+        self.ecg_waveform: List[float] = [0.0] * 10  # T27：真实指标初始为平线（无轮次数据）
         self.radar_metrics = RadarMetrics(
             radar_perception=92.0,
             responsiveness=96.5,
@@ -872,6 +874,7 @@ class PerfectNeuralEngine:
 
     async def _run_dag_round(self) -> None:
         """执行一轮完整 DAG：编译分层、单节点错误隔离、运行记录归档与真实雷达统计"""
+        round_t0 = time.perf_counter()
         layers = self.compile_topological_layers()
         self._round_seq += 1
         round_id = f"{self.current_run_id}_r{self._round_seq}"
@@ -963,15 +966,17 @@ class PerfectNeuralEngine:
 
         # 雷达图由真实统计推导
         self.radar_metrics = self._compute_radar_metrics()
+        # T23/T27：真实轮耗时 → 指标直方图 + ECG 数据源
+        round_ms = (time.perf_counter() - round_t0) * 1000
+        metrics.observe_round(round_ms)
+        self.last_round_latency_ms = round_ms
         await self.append_log("Success...")
         await self.append_log("[System] Deploying to Sandbox...")
 
     async def _dag_execution_loop(self) -> None:
         while True:
             try:
-                round_t0 = time.perf_counter()
                 await self._run_dag_round()
-                metrics.observe_round((time.perf_counter() - round_t0) * 1000)  # T23
                 self.last_tick_monotonic = time.monotonic()  # T20 心跳
                 self.loop_failure_counts["dag"] = 0  # T25 成功即清零
                 await asyncio.sleep(1.6)
@@ -982,6 +987,10 @@ class PerfectNeuralEngine:
                 logger.exception(f"dag_loop_error run_id={self.current_run_id} count={self.loop_failure_counts['dag']} error={exc}")
                 await self.append_log(f"[Error] Topological Executor: {exc}")
                 await asyncio.sleep(1.0)
+
+    def _telemetry_sample(self) -> float:
+        """T27：ECG 采样值 = 最近一轮 DAG 总耗时归一化（0~1，2s 顶格；无轮数据时为 0 平线）"""
+        return min(1.0, self.last_round_latency_ms / 2000.0)
 
     async def _telemetry_loop(self) -> None:
         while True:
@@ -994,10 +1003,8 @@ class PerfectNeuralEngine:
                 self.cpu_history = (self.cpu_history + [cpu_val])[-16:]
                 self.memory_history = (self.memory_history + [mem_val])[-16:]
 
-                # ECG 心电波形为纯装饰性随机生成，非真实指标
-                step_idx = int(self._phase * 2) % 7
-                ecg_pt = 0.88 if step_idx == 0 else (-0.42 if step_idx == 1 else round(math.sin(self._phase * 3) * 0.14, 2))
-                self.ecg_waveform = (self.ecg_waveform + [ecg_pt])[-20:]
+                # T27：ECG 波形 = 真实指标（最近一轮 DAG 总耗时，归一化到 0~1，无轮时重复上一值）
+                self.ecg_waveform = (self.ecg_waveform + [self._telemetry_sample()])[-20:]
 
                 # 遥测瘦身：sandbox_html 与 shared_memory_bus 已由 node_update 携带，不再重复下发
                 await self.ws_manager.broadcast(
