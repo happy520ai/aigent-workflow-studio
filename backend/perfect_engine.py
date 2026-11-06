@@ -313,6 +313,9 @@ class PerfectNeuralEngine:
         self._engine_task: Optional[asyncio.Task] = None
         self._telemetry_task: Optional[asyncio.Task] = None
         self._phase: float = 0.0
+        # T20/T25：健康看护——最近一次心跳（time.monotonic）与两个循环的连续失败计数
+        self.last_tick_monotonic: Optional[float] = None
+        self.loop_failure_counts: Dict[str, int] = {"dag": 0, "telemetry": 0}
 
         self.cpu_history: List[float] = [32.0, 45.0, 28.0, 64.0, 41.0, 53.0, 38.0, 62.0, 49.0, 55.0]
         self.memory_history: List[float] = [58.0, 58.5, 59.2, 58.8, 60.1, 59.5, 60.4, 60.0, 61.2, 60.8]
@@ -835,10 +838,13 @@ class PerfectNeuralEngine:
         while True:
             try:
                 await self._run_dag_round()
+                self.last_tick_monotonic = time.monotonic()  # T20 心跳
+                self.loop_failure_counts["dag"] = 0  # T25 成功即清零
                 await asyncio.sleep(1.6)
             except asyncio.CancelledError:
                 break
             except Exception as exc:
+                self.loop_failure_counts["dag"] += 1  # T25：异常不吞，计数上报
                 await self.append_log(f"[Error] Topological Executor: {exc}")
                 await asyncio.sleep(1.0)
 
@@ -871,10 +877,45 @@ class PerfectNeuralEngine:
                     },
                 )
                 await asyncio.sleep(0.5)
+                self.last_tick_monotonic = time.monotonic()  # T20 心跳
+                self.loop_failure_counts["telemetry"] = 0  # T25 成功即清零
             except asyncio.CancelledError:
                 break
             except Exception:
+                self.loop_failure_counts["telemetry"] += 1  # T25：计数不吞
                 await asyncio.sleep(0.5)
+
+    def readiness(self) -> Dict[str, Any]:
+        """T20/T25 就绪探针数据：SQLite 可写 + 两个循环 task 存活 + 最近心跳 < 5s + 无连续异常。
+        不泄露内部细节（不含 db 路径、密钥、拓扑）。"""
+        sqlite_ok = True
+        try:
+            with sqlite3.connect(self.checkpoint_store.db_path, timeout=2.0) as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS _readyz_probe (k TEXT PRIMARY KEY)")
+                conn.execute("DROP TABLE IF EXISTS _readyz_probe")
+        except Exception:
+            sqlite_ok = False
+
+        now = time.monotonic()
+        last_tick = self.last_tick_monotonic
+        tick_age = round(now - last_tick, 3) if last_tick is not None else None
+        dag_alive = bool(self._engine_task and not self._engine_task.done())
+        telemetry_alive = bool(self._telemetry_task and not self._telemetry_task.done())
+        tick_ok = tick_age is not None and tick_age < 5.0
+        failures = dict(self.loop_failure_counts)
+        loop_healthy = max(failures.values(), default=0) < 3  # T25：连续失败阈值
+
+        ready = sqlite_ok and dag_alive and telemetry_alive and tick_ok and loop_healthy
+        return {
+            "status": "ready" if ready else "not_ready",
+            "checks": {
+                "sqlite_writable": sqlite_ok,
+                "dag_loop_alive": dag_alive,
+                "telemetry_loop_alive": telemetry_alive,
+                "last_tick_age_s": tick_age,
+                "loop_failure_counts": failures,
+            },
+        }
 
     def start(self) -> None:
         if not self._engine_task or self._engine_task.done():

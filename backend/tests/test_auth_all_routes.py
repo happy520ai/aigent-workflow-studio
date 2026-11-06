@@ -104,6 +104,8 @@ def test_cors_preflight_bypasses_auth(api, monkeypatch):
     assert r.status_code == 200
 
 
-def test_health_and_options_exempt_constant_ready():
-    # T10 阶段免鉴权清单为空；T20 接入 /healthz /readyz 时由对应测试验证
-    assert perfect_main.AUTH_EXEMPT_PATHS == set()
+def test_health_endpoints_exempt_from_auth(api, monkeypatch):
+    # T20：/healthz /readyz 免鉴权——配置令牌后依然可被编排器/负载均衡探测
+    monkeypatch.setenv("AIGENT_ADMIN_TOKEN", "tok-abc123")
+    assert api.get("/healthz").status_code == 200
+    assert api.get("/readyz").status_code == 200

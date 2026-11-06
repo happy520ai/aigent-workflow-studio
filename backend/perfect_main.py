@@ -86,7 +86,7 @@ app = FastAPI(
 #   - /publish/live-app 因 iframe 无法携带自定义请求头，改用短期签名 URL（HMAC-SHA256 + 过期时间）。
 # 注册顺序：本中间件先于 CORS 注册 → CORS 保持最外层，401/403 响应也会带上 CORS 头，前端可读。
 TRUSTED_LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}  # testclient = Starlette 测试客户端标记
-AUTH_EXEMPT_PATHS = set()  # 免鉴权路径（T20 健康检查加入 /healthz /readyz）
+AUTH_EXEMPT_PATHS = {"/healthz", "/readyz"}  # T20：健康检查免鉴权（不泄露内部细节）
 
 
 def _admin_token() -> str:
@@ -278,6 +278,21 @@ app.add_middleware(
 )
 # T14 安全头中间件注册在最后 → 位于 CORS 之下最外层，401/429 等全部响应都带安全头
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+@app.get("/healthz")
+async def healthz():
+    """T20：进程存活探针（免鉴权、无依赖检查，仅证明服务在）"""
+    return {"status": "ok", "version": app.version}
+
+
+@app.get("/readyz")
+async def readyz():
+    """T20/T25：就绪探针（免鉴权）：SQLite 可写 + 引擎双循环存活 + 心跳 < 5s + 无连续异常"""
+    report = engine.readiness()
+    if report["status"] != "ready":
+        return JSONResponse(status_code=503, content=report)
+    return report
 
 
 @app.get("/api/v1/components", response_model=List[ComponentItem])
