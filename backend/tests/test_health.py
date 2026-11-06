@@ -24,8 +24,17 @@ def test_healthz_liveness(api):
 
 
 def test_readyz_reports_ready(api):
-    r = api.get("/readyz")
-    assert r.status_code == 200
+    # 引擎首跳心跳前 readyz 正确返回 503（未就绪）；轮询等待就绪后断言各项检查
+    import time as _t
+
+    deadline = _t.time() + 10
+    r = None
+    while _t.time() < deadline:
+        r = api.get("/readyz")
+        if r.status_code == 200:
+            break
+        _t.sleep(0.2)
+    assert r is not None and r.status_code == 200, f"readyz body: {r.text if r else 'no response'}"
     body = r.json()
     assert body["status"] == "ready"
     checks = body["checks"]

@@ -76,12 +76,21 @@ def test_error_recovery_next_round(monkeypatch):
 
 
 def test_runs_endpoint_returns_desc_order(perfect_client):
+    import time as _time
+
     from perfect_main import engine
 
+    # 等待至少一轮完整 DAG 归档：轮周期 ~2.5s，且前序用例的快速 lifespan 会把在途轮
+    # 中止在 run_history 追加之前（T21/T25 生命周期变更后暴露的时序依赖，此处显式等待）。
+    deadline = _time.time() + 15
+    while _time.time() < deadline and not engine.run_history:
+        _time.sleep(0.3)
+    expected_latest = engine.run_history[-1]["round_id"]
     resp = perfect_client.get("/api/v1/runs?limit=20")
     assert resp.status_code == 200
     rows = resp.json()
     assert isinstance(rows, list)
     assert len(rows) >= 1
-    # 倒序：第一条应为最新一轮
-    assert rows[0]["round_id"] == engine.run_history[-1]["round_id"]
+    # 倒序：第一条应为请求时刻的最新一轮（允许期间插入了更新的轮次）
+    assert rows[0]["round_id"] in {expected_latest, engine.run_history[-1]["round_id"]}
+

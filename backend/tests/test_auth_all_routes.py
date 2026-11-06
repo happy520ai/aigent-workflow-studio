@@ -108,4 +108,12 @@ def test_health_endpoints_exempt_from_auth(api, monkeypatch):
     # T20：/healthz /readyz 免鉴权——配置令牌后依然可被编排器/负载均衡探测
     monkeypatch.setenv("AIGENT_ADMIN_TOKEN", "tok-abc123")
     assert api.get("/healthz").status_code == 200
-    assert api.get("/readyz").status_code == 200
+    # readyz 在引擎首跳心跳前会正确返回 503（未就绪）；轮询等待就绪后断言免鉴权 200
+    deadline = time.time() + 8
+    code = 0
+    while time.time() < deadline:
+        code = api.get("/readyz").status_code
+        if code == 200:
+            break
+        time.sleep(0.2)
+    assert code == 200

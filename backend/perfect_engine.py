@@ -953,14 +953,12 @@ class PerfectNeuralEngine:
         }
 
     def start(self) -> None:
-        for name, coro_factory in (
-            ("dag", self._dag_execution_loop),
-            ("telemetry", self._telemetry_loop),
-        ):
+        # T25：cancelling()>0 的任务即将死透，也要重建——否则快速 lifespan 回收后双循环全灭
+        for name in ("dag", "telemetry"):
             task = self._engine_task if name == "dag" else self._telemetry_task
-            needs_restart = task is None or task.done() or task.cancelling() > 0
-            if needs_restart:
-                new_task = asyncio.create_task(coro_factory())
+            if task is None or task.done() or task.cancelling() > 0:
+                coro = self._dag_execution_loop() if name == "dag" else self._telemetry_loop()
+                new_task = asyncio.create_task(coro)
                 if name == "dag":
                     self._engine_task = new_task
                 else:
@@ -970,15 +968,13 @@ class PerfectNeuralEngine:
         for t in (self._engine_task, self._telemetry_task):
             if t and not t.done():
                 t.cancel()
-        # T25：等待取消真正落地（跨 loop 安全的 done() 轮询——engine 为模块级单例，
+        # T25：等待取消真正落地（跨 loop 安全的 done() 轮询；engine 为模块级单例，
         # start/stop 可能来自不同事件循环，不能用 gather 携带跨 loop Future）。
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline:
             if all(t is None or t.done() for t in (self._engine_task, self._telemetry_task)):
                 break
             await asyncio.sleep(0.02)
-        self._engine_task = None
-        self._telemetry_task = None
 
     def get_snapshot(self) -> WorkflowSnapshot:
         return WorkflowSnapshot(
