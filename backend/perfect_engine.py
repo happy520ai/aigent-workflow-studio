@@ -19,6 +19,7 @@ import psutil
 from fastapi import WebSocket
 
 from ast_validator import FrontendASTValidator
+from metrics import metrics
 from obs_logging import get_logger
 from models import (
     ComponentItem,
@@ -700,8 +701,11 @@ class PerfectNeuralEngine:
                         )
                         resp.raise_for_status()
                         raw_html = resp.json()["choices"][0]["message"]["content"]
+                        metrics.observe_llm("success")
                 except Exception as exc:
                     # 不再静默吞掉：LLM 失败必须留痕后降级内置模板
+                    metrics.observe_llm("failure")
+                    metrics.observe_llm("degraded")
                     logger.warning(f"llm_call_failed node_id={node.id} degraded=true error={exc}")
                     await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {exc}")
                     await asyncio.sleep(0.3)
@@ -732,6 +736,7 @@ class PerfectNeuralEngine:
         node.progress = 100.0
         node.status = "success"
         node.last_error = None
+        metrics.observe_node(node.type, "success", elapsed_ms)  # T23
 
         # 4. 输出写入节点输出表供下游消费；shared_memory_bus 保留向后兼容
         self.node_outputs[node.id] = op_result.get("output")
@@ -817,6 +822,7 @@ class PerfectNeuralEngine:
                     # 上游失败：本节点标记 skipped 并跳过执行（单节点错误隔离）
                     node.status = "skipped"
                     node.progress = 0.0
+                    metrics.observe_node(node.type, "skipped", node.latency_ms)  # T23
                     node_records.append(
                         {"id": nid, "status": "skipped", "latency_ms": node.latency_ms, "error": None}
                     )
@@ -839,6 +845,7 @@ class PerfectNeuralEngine:
                         node.status = "error"
                         node.last_error = str(res)
                         node.progress = 0.0
+                        metrics.observe_node(node.type, "error", node.latency_ms)  # T23
                         failed.add(node.id)
                         node_records.append(
                             {"id": node.id, "status": "error", "latency_ms": node.latency_ms, "error": node.last_error}
@@ -875,7 +882,9 @@ class PerfectNeuralEngine:
     async def _dag_execution_loop(self) -> None:
         while True:
             try:
+                round_t0 = time.perf_counter()
                 await self._run_dag_round()
+                metrics.observe_round((time.perf_counter() - round_t0) * 1000)  # T23
                 self.last_tick_monotonic = time.monotonic()  # T20 心跳
                 self.loop_failure_counts["dag"] = 0  # T25 成功即清零
                 await asyncio.sleep(1.6)

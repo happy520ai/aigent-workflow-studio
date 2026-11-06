@@ -22,6 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from ast_validator import ASTValidationReport, FrontendASTValidator
+from metrics import metrics as app_metrics
 from models import ComponentItem, ControlRequest, NeuralEdge, WorkflowNode, WorkflowSnapshot
 from obs_logging import configure_logging, get_logger, request_id_var
 from perfect_engine import ConnectionManager, PerfectNeuralEngine
@@ -166,7 +167,7 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
                 )
             return await call_next(request)
 
-        sensitive = path.startswith("/api/v1/publish/") or path.startswith("/api/v1/settings/")
+        sensitive = path.startswith("/api/v1/publish/") or path.startswith("/api/v1/settings/") or path == "/metrics"
         needs_token = method not in ("GET", "HEAD") or sensitive
         if not needs_token and os.getenv("AIGENT_PUBLIC_READ", "") != "1":
             needs_token = True  # 未显式开公共读时，GET 同样需要令牌
@@ -320,6 +321,17 @@ async def readyz():
     if report["status"] != "ready":
         return JSONResponse(status_code=503, content=report)
     return report
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """T23：Prometheus 文本指标（鉴权语义：配置令牌则必带；未配置仅本机回环）"""
+    from fastapi.responses import PlainTextResponse
+
+    return PlainTextResponse(
+        app_metrics.render(ws_connections=len(ws_manager.active_connections)),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 @app.get("/api/v1/components", response_model=List[ComponentItem])
