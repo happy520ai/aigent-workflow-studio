@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "run_at": "2026-11-04T17:41:30.743Z",
+  "ok": false,
+  "reported_ok": false,
+  "execute": true,
+  "evidence_level": "execution_only",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v25.8.1"
+  },
+  "source": {
+    "before": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "2bc9fafa83af73201e0e0944afa0c5296b713b95850f783934da3055eec0664f",
+      "files": 40,
+      "bytes": 4618291
+    },
+    "after": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "9253461efed301ec1b736ecf557c7bd3da7ad5f17d6765c561a026e428795556",
+      "files": 39,
+      "bytes": 4732979
+    },
+    "stable": false
+  },
+  "results": [
+    {
+      "unit_root": "E:\\workflow工作台\\backend",
+      "kind": "test",
+      "command": "python",
+      "args": [
+        "-m",
+        "pytest"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 18380,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 104,
+        "stderr_bytes": 0,
+        "output_sha256": "f4ba6defdcf00331c5db75f03463806398f38484218816643cd488be772526f4",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    }
+  ]
+}

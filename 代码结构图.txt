@@ -1,0 +1,373 @@
+══════════════════════════════════════════════════════════════════════
+  神经元工作流平台 · 代码结构详细图（文本版 v2）
+  项目根：E:\workflow工作台
+  生成日期：2026-11-06 · 行数为 wc -l 实测 · 类/函数/路由均从实码提取
+══════════════════════════════════════════════════════════════════════
+
+【一句话介绍】
+神经元式智能体工作流可视化平台。
+前端 React 18 + TypeScript + Vite 5173（工作台 UI + 神经元动效引擎），
+后端 Python FastAPI 8000（动态拓扑 DAG 编排引擎 + WebSocket 遥测 + 工件发布）。
+设计语言："赛博蜘蛛 HUD + 道家哲学叙事"，前后端共用同一套数据契约 1:1 对接。
+
+══════════════════════════════════════════════════════════════════════
+零、先看这五条（30 秒版）
+══════════════════════════════════════════════════════════════════════
+  1. 前端入口就一层皮：main.tsx(11行) → App.tsx(5行) → Workbench.tsx(964行)。
+     Workbench 是前端唯一的状态中枢，所有面板/画布由它挂载和喂数据。
+  2. 后端主用的是带 perfect 前缀的 perfect_main.py + perfect_engine.py
+     （v2.8）；不带前缀的 main.py + engine.py 是 v1 旧版，保留兼容。
+  3. 前后端通信：REST 15 个接口（/api/v1/*）+ WebSocket 1 条通道
+     （/ws/telemetry，4 种事件）。数据格式全部由 backend/models.py 定义。
+  4. 后端核心是一个 DAG 执行引擎：节点按拓扑分层，逐层执行，每个节点
+     的实际动作由"算子注册表"里的 12 个算子 + 1 个兜底承担（画布节点 type 经别名表归一化）。
+  5. frontend 里带 Neural 前缀的 5 个备件组件（WebGL着色器/小地图/声效/
+     备选画布/后端Hook）没有被 Workbench import，未接线不生效。
+
+══════════════════════════════════════════════════════════════════════
+一、整体架构（从上到下 = 一次请求的旅程）
+══════════════════════════════════════════════════════════════════════
+
+  浏览器 http://localhost:5173
+  ┌────────────────────────────────────────────────────────┐
+  │ main.tsx → App.tsx → Workbench.tsx（964行 状态中枢）    │
+  │   ├─ BioluminescentCanvas  神经元画布（533行）          │
+  │   ├─ NodeMicroWidgets      节点微动效（297行）          │
+  │   ├─ SandboxAndTimeTravel  沙盒/时间旅行弹窗（362行）   │
+  │   └─ useSynapseLinker      突触连线状态 Hook（85行）    │
+  └───────────────┬────────────────────▲───────────────────┘
+        REST 请求 │                    │ WebSocket 推送
+   (15 个 /api/v1/*)│                    │ (4 种事件)
+  ┌───────────────▼────────────────────┴───────────────────┐
+  │ FastAPI :8000  perfect_main.py（249行，v2.8 入口）      │
+  │   ├─ ast_validator.py      前端代码安检（168行）        │
+  │   └─ publisher.py          zip 工件打包（60行）         │
+  └────────────────────────┬───────────────────────────────┘
+                           ↓
+  ┌────────────────────────────────────────────────────────┐
+  │ perfect_engine.py（619行，v2.8 引擎）                   │
+  │   ├─ PerfectNeuralEngine  DAG 分层执行 + 遥测循环       │
+  │   ├─ CheckpointStore      SQLite 检查点（时间旅行）     │
+  │   ├─ ConnectionManager    WebSocket 广播               │
+  │   └─ operator_registry.py 12算子+1兜底（含类型别名）      │
+  └───────────────┬────────────────────────────────────────┘
+                  ↓ 读写
+  ┌────────────────────────────────────────────────────────┐
+  │ models.py（88行）Pydantic 契约 + aigent_checkpoints.db  │
+  └────────────────────────────────────────────────────────┘
+
+══════════════════════════════════════════════════════════════════════
+二、前端 frontend/ —— 每个文件干什么、对外暴露什么
+══════════════════════════════════════════════════════════════════════
+
+  ▍启动层
+  index.html               页面骨架，div#root 挂载点
+  src/main.tsx      11行   createRoot 挂载 <App/>
+  src/App.tsx        5行   return <Workbench/>
+  vite.config.ts           dev 端口 5173、构建配置
+  tsconfig.json            TS 编译选项
+
+  ▍src/Workbench.tsx — 964行 ★前端状态中枢（全量合成版）
+    export default function Workbench()
+    职责：
+      · 挂载 BioluminescentCanvas 神经元画布
+      · 顶栏 HeaderMiniOscilloscope CPU/内存双通道荧光示波器
+      · WebSocket 遥测接入（本地仿真双驱动：断网时本地模拟数据兜底）
+      · 组件库侧边栏、节点面板、终端日志面板编排
+    内部数据类型（与后端 models.py 一一对应）：
+      NodePosition {x,y} / WorkflowNode {id,type,title,subtitle,position,
+      status,progress,confidence} / NeuralEdge {id,source,target} /
+      RadarMetrics 五维 {responsiveness,accuracy,concurrency,stability,…}
+    引用：BioluminescentCanvas / NodeMicroWidgets / SandboxAndTimeTravel /
+          useSynapseLinker
+  ▍src/index.css — 51行 全局样式 + eqBar / laserScan keyframes
+
+  ▍src/components/BioluminescentCanvas.tsx — 533行 ★神经元画布引擎
+    export interface CanvasNodePos   画布节点坐标（含动效参数）
+    export interface CanvasEdgeLink  画布突触连线
+    实现要点：
+      · 加色混合（globalCompositeOperation="lighter"）发光叠加
+      · 变径分形树突 + 极坐标谐波 Soma（胞体）
+      · 5 股交织突触束 + 14 段彗星拖尾脉冲
+      · DPR 自适应（高分屏不糊）
+      · requestAnimationFrame 主循环，纯 Canvas 2D，零依赖
+
+  ▍src/components/NodeMicroWidgets.tsx — 297行 节点微动效
+    4 类节点小仪表：
+      PhosphorECGWidget      QRS 心电示波器
+      AuraAICoreWidget       双环旋转 AI 核 + 频谱柱
+      WireframeScannerWidget 激光扫描线
+      RadarSweepWidget       五维呼吸雷达
+
+  ▍src/components/SandboxAndTimeTravel.tsx — 362行 沙盒与时间旅行弹窗
+    export interface ASTDiagnostic       对接后端 ASTValidationReport
+    export interface ASTValidationReport
+    export interface CheckpointRecord    对接 /api/v1/checkpoints
+    功能：AST 校验报告展示（调 POST /api/v1/ast/validate）+
+          检查点时间旅行（调 GET /api/v1/checkpoints 与
+          POST /api/v1/checkpoints/{id}/restore）
+    引用 lucide-react 图标库
+
+  ▍src/hooks/useSynapseLinker.ts — 85行 主用连线 Hook
+    export interface SynapseEdge { id, source, target }
+    export function useSynapseLinker()
+    职责：记住"先点 A 再点 B"的选中顺序 → 生成一条突触边 →
+          交给 Workbench 调 POST /api/v1/workflow/edges 落库
+
+  ▍src/utils/neuralAudio.ts — 93行（备件，未接线）
+    零依赖 Web Audio 三类声效合成器
+
+  ▍备件层（⚠️ 均未被 Workbench.tsx import，vite 构建摇树剔除，不生效）
+    components/NeuralBioCanvas.tsx   197行  生物画布（BioluminescentCanvas
+                                            的备选实现）
+    components/NeuralWebGLShader.tsx 184行  WebGL FBM 次表面散射着色器
+                                            + 鼠标电势场涟漪
+    components/NeuralMinimap.tsx      94行  鹰眼小地图
+    utils/neuralAudio.ts              93行  声效合成器
+    hooks/useWorkflowBackend.ts       82行  后端数据 Hook
+      export interface WorkflowSnapshotMsg  对接 WS workflow_snapshot
+      export interface TelemetryTickMsg     对接 WS telemetry_tick
+      export function useWorkflowBackend()
+
+  ▍其他
+    standalone-preview.html          免安装单文件预览包（不参与构建）
+    package.json                     含 test 冒烟脚本（tsc -b + vite build）
+
+══════════════════════════════════════════════════════════════════════
+三、后端 backend/ —— 每个文件干什么、路由/类/方法清单
+══════════════════════════════════════════════════════════════════════
+
+  ▍perfect_main.py — 249行 ★v2.8 主入口（FastAPI，端口 8000）
+    lifespan 启动钩子：拉起引擎后台任务
+    REST 路由（19 个）：
+      GET   /api/v1/components                     组件库列表（支持 ?q= 搜索）
+      GET   /api/v1/workflow                       当前工作流快照
+      POST  /api/v1/workflow/control               控制：run/pause/debug/reset
+      POST  /api/v1/workflow/nodes                 侧边栏添加节点（可选 connect_from 父节点）
+      DELETE/api/v1/workflow/nodes/{id}            删除节点（级联删关联连线）
+      PATCH /api/v1/workflow/nodes/{id}/position   拖拽移动节点
+      PUT   /api/v1/workflow/nodes/{id}/config     修改节点配置
+      POST  /api/v1/workflow/edges                 创建突触连线（自环400/重复409/成环409）
+      DELETE/api/v1/workflow/edges/{id}            删除连线
+      GET   /api/v1/runs                           最近 DAG 运行记录（倒序，?limit=）
+      GET   /api/v1/search                         全局检索节点/算子/日志（?q= 必填）
+      POST  /api/v1/ast/validate                   前端代码 AST 安检
+      GET   /api/v1/checkpoints                    检查点列表（默认 15 条）
+      POST  /api/v1/checkpoints/{id}/restore       恢复到检查点（含拓扑还原）
+      GET   /api/v1/sandbox/preview                沙盒实时预览 HTML
+      GET   /api/v1/settings/llm                   读取 LLM 配置（守卫，不回显密钥）
+      PUT   /api/v1/settings/llm                   更新 LLM 配置（守卫 + SSRF 校验）
+      GET   /api/v1/publish/export-zip             导出工作流 zip 包
+      GET   /api/v1/publish/live-app               已发布应用预览页（带 sandbox CSP）
+    WebSocket 路由：
+      WS    /ws/telemetry                          遥测推送通道
+    依赖：perfect_engine / models / ast_validator / publisher
+
+  ▍main.py — 122行 v1 旧入口（保留兼容，功能子集）
+    路由只有 6 个：components / workflow / workflow/control /
+    nodes/{id}/config / search / ws/telemetry
+    （没有 AST 校验、检查点、发布、节点增删改等 v2.8 能力）
+    依赖：engine（v1）/ models
+
+  ▍perfect_engine.py — 619行 ★v2.8 编排引擎
+    class CheckpointStore          检查点持久化
+      __init__(db_path=None)      缺省取 AIGENT_DB_PATH，再回落 aigent_checkpoints.db
+      save_checkpoint(..., topology?)  断点可携带拓扑快照；插入后按
+                                   CHECKPOINT_MAX（默认 2000）剪枝
+      list_checkpoints(limit)     返回键集合固定 6 个（不暴露 topology_json）
+      get_checkpoint(id)          按 id 精确取回完整行（含 topology_json）
+    class ConnectionManager        WebSocket 连接管理
+      connect() / disconnect() / broadcast(event_type, data)
+      广播信封格式：{"event": <类型>, "timestamp": <时刻>, "data": {...}}
+    class PerfectNeuralEngine      核心引擎
+      _init_components()          初始化组件库
+      _init_nodes()               初始化默认工作流节点
+      _init_edges()               初始化默认突触连线
+      compile_topological_layers()★DAG 拓扑分层（入度归零法），
+                                  节点按依赖分层，同层可并行
+      _execute_single_node()      执行单个节点（收集上游输出经 inputs 注入
+                                  算子；耗时/置信度为真实测量）
+      _run_dag_round()            执行一轮 DAG（单节点错误隔离：失败节点
+                                  error、传递下游 skipped、兄弟分支继续）
+      _dag_execution_loop()       DAG 主执行循环（每轮归档 run_history）
+      _compute_radar_metrics()    雷达五维由最近 50 次执行统计推导
+      _telemetry_loop()           遥测采集循环（psutil 真实 CPU/内存 +
+                                  心电波形[纯装饰] + 五维雷达）
+      handle_control(action)      处理 run/pause/debug/reset（RESET 清
+                                  node_outputs 并持久化默认拓扑）
+      add_custom_node_from_sidebar(comp_id, x, y, connect_from=None)
+                                  侧边栏节点落图（显式父节点优先）
+      delete_node(node_id)        删除节点并级联删连线
+      would_create_cycle(s, t)    加边成环预判（从 t 沿边 DFS 回到 s）
+      save_topology()/load        拓扑持久化（AIGENT_PERSIST_TOPOLOGY=1 时）
+      get_snapshot()              组装 WorkflowSnapshot
+    依赖：httpx / psutil / fastapi.WebSocket / models /
+          ast_validator / operator_registry / sqlite3
+
+  ▍engine.py — 470行 v1 引擎（保留兼容）
+    class ConnectionManager        同 v2.8 结构
+    class NeuralWorkflowEngine
+      _init_component_library() / _init_default_nodes() / _init_default_edges()
+      _workflow_loop()             串行阶段循环（v1 无 DAG 分层）
+      _telemetry_loop()
+      _execute_llm_or_simulate()   LLM 调用或本地仿真
+      _wait_if_paused_or_debug()   暂停/调试挂起
+      handle_control() / update_node_config() / append_log()
+      start_background_tasks() / stop_background_tasks()
+
+  ▍operator_registry.py ★算子注册表（节点动作的分发中心）
+    _ALIASES                      画布节点 type → 算子 key 别名归一化表
+                                  （event_capturer→trig_events 等 5 条）
+    class NeuralOperatorRegistry
+      execute(key, cfg, bus, inputs=None)
+                                  key 先经 _ALIASES 归一化；上游输出注入
+                                  cfg 副本 _inputs；返回值带 operator 与
+                                  mode:"simulated"（如实标注内置模拟）
+      12 个算子 + 1 个兜底，三段式命名 <阶段>_<动作>：
+        触发  trig_events      事件触发
+              trig_schedule    定时触发
+        感知  perc_nlu         自然语言理解
+              perc_vision      视觉感知
+        智能体 agent_intent   意图识别
+               agent_codegen  代码生成
+        逻辑  logic_transform 数据变换
+              logic_state     状态管理
+        前端  fe_assemble     前端组装
+              fe_render       前端渲染
+        部署  dep_test        测试
+              dep_publish     发布
+        兜底  default         未知类型兜底
+      每个算子签名：async _op_xxx(cfg, bus) -> Dict（cfg 节点配置，
+      bus 总线：节点间传递的数据；cfg["_inputs"] 为上游输出）
+
+  ▍ast_validator.py — 168行 前端代码安检
+    class ASTDiagnostic            单条诊断（行号/级别/信息）
+    class ASTValidationReport      校验报告（可修复标记）
+    class _DOMTreeAnalyzer(HTMLParser)  解析 HTML 标签树
+      handle_starttag() / handle_endtag()   标签配对检查
+    class FrontendASTValidator
+      validate_and_heal(raw_code)  校验 + 自动修复 + 安全清洗：
+                                   移除内联事件属性 / 整体删除 iframe 等
+                                   7 类危险标签 / 清理 javascript: 与
+                                   data:text/html 伪协议及 srcdoc
+
+  ▍publisher.py — 60行 工件打包
+    class WorkflowArtifactPublisher
+      build_project_zip()          工作流产物 → zipfile 内存打包
+                                   → StreamingResponse 下载
+
+  ▍models.py — 88行 ★前后端共用数据契约（Pydantic）
+    class WorkflowStatus(枚举)   已就绪/运行中/已暂停/调试中/异常
+    class ControlAction(枚举)    run / pause / debug / reset
+    class ControlRequest         {action, target_node_id?}
+    class ComponentItem          组件库条目 {id, category, name, icon,
+                                 theme_color, ...中英双语}
+    class NodePosition           {x: float, y: float}
+    class RadarMetrics           五维雷达 {radar_perception 92.0,
+                                 responsiveness 96.5, accuracy 99.2,
+                                 concurrency 88.0, stability 95.4}
+    class WorkflowNode           节点 {id, type, title, subtitle, position,
+                                 theme_color, status(idle|active|success|
+                                 error), progress, confidence 99.2,
+                                 latency_ms 8, config_json}
+    class NeuralEdge             突触 {id, source, target, latency_ms,
+                                 confidence_pct, connection_status"已连接",
+                                 active_pulse}
+    class SystemTelemetry        遥测 {cpu_history[], memory_history[],
+                                 ecg_waveform[], radar_metrics}
+    class WorkflowSnapshot       快照 {version"v2.8", project_status,
+                                 selected_node_id, nodes[], edges[],
+                                 telemetry, terminal_logs[]}
+
+  ▍测试 backend/tests/（17 个文件）
+    test_perfect_engine.py        v2.8 引擎（DAG 分层/检查点/遥测）
+    test_perfect_api.py           v2.8 全部 REST 路由
+    test_operator_mapping.py      A1 类型别名归一化（5 节点不落兜底）
+    test_dataflow.py              A2 数据沿边流动（_inputs 注入）
+    test_topology_api.py          A5 连线校验链 404/400/409 + 删除级联
+    test_error_isolation.py       A4 错误隔离 + run_history + GET /runs
+    test_ast_security.py          A6b 内联事件/危险标签/伪协议清洗
+    test_settings_guard.py        A6c 设置守卫 401/403 + SSRF 拒绝
+    test_live_app_csp.py          A6a live-app sandbox CSP
+    test_persistence.py           A7 拓扑持久化/剪枝/迁移/restore
+    test_search_endpoint.py       A9 全局检索接口
+    test_cors.py                  A6d CORS 白名单（独立最小应用）
+    test_engine.py / test_api.py / test_models.py / test_websocket.py
+                                  v1 兼容测试（不动）
+    conftest.py                   fixtures + 测试隔离环境变量
+    scripts/smoke_ws.py           WS/REST 手工冒烟脚本
+
+══════════════════════════════════════════════════════════════════════
+四、WebSocket 消息协议（/ws/telemetry，信封 {"event", "timestamp", "data"}）
+══════════════════════════════════════════════════════════════════════
+    workflow_snapshot  整张快照（节点/连线/遥测/日志）——节点变化时推
+    node_update        单节点更新 {node, sandbox_html,
+                       shared_memory_bus}——节点执行完成时推
+    terminal_log       终端日志 {line, logs[]}——每条日志追加时推
+    telemetry_tick     遥测心跳 {project_status, cpu_history,
+                       memory_history, ecg_waveform, radar_metrics,
+                       edges}——500ms 一拍（A8 瘦身后不含
+                       sandbox_html / shared_memory_bus）
+
+══════════════════════════════════════════════════════════════════════
+五、一次完整交互的数据流（举例：用户拖拽加节点）
+══════════════════════════════════════════════════════════════════════
+    1. 用户在侧边栏点一个组件卡
+    2. Workbench 调 POST /api/v1/workflow/nodes
+    3. perfect_main → PerfectNeuralEngine.add_custom_node_from_sidebar()
+       生成节点、compile_topological_layers() 重算分层
+    4. 引擎 broadcast "workflow_snapshot" → 前端重绘画布
+    5. _dag_execution_loop() 执行该节点 → _execute_single_node()
+       → operator_registry.execute(type) 走对应算子
+    6. 执行中 broadcast "node_update"（进度）和 "terminal_log"（日志）
+    7. _telemetry_loop() 周期 broadcast "telemetry_tick"
+       → Workbench 顶栏示波器实时跳动
+    8. CheckpointStore.save_checkpoint() 存 SQLite → 时间旅行弹窗可恢复
+
+══════════════════════════════════════════════════════════════════════
+六、根目录文件
+══════════════════════════════════════════════════════════════════════
+    bootstrap_studio.py       82行  一键启动脚本
+    docker-compose.yml        28行  Docker 编排（前后端全套）
+    start.sh                  18行  Linux/Mac 启动脚本
+    test/verify-perfect-workbench.js 67行  工作台端到端校验
+    PROJECT.md                      项目仪表盘（pm-mcp 自动维护）
+    AGENTS.md                       工作规矩（pm-mcp 自动维护）
+    智能体工作台完整合并文档.md      完整架构文档（20 板块）
+    代码结构图.html                  交互式结构图（配套本文件）
+
+══════════════════════════════════════════════════════════════════════
+七、怎么跑起来
+══════════════════════════════════════════════════════════════════════
+    前端：cd frontend && npm install && npm run dev   → :5173
+    后端：cd backend && uvicorn perfect_main:app --port 8000
+    一键：python bootstrap_studio.py   或   docker-compose up
+    免安装预览：浏览器直接打开 frontend/standalone-preview.html
+    测试：前端 cd frontend && npm test；后端 cd backend && pytest
+
+══════════════════════════════════════════════════════════════════════
+八、环境变量（安全 / 持久化 / 前端接线）
+══════════════════════════════════════════════════════════════════════
+    LLM_API_KEY               大模型密钥（响应绝不回显）
+    LLM_API_BASE              大模型接口地址（默认 https://api.openai.com/v1）
+    LLM_MODEL                 模型名（默认 gpt-4o-mini）
+    AIGENT_ADMIN_TOKEN        设置接口管理令牌；设置后请求需带 X-Admin-Token
+    LLM_API_BASE_ALLOWLIST    api_base 主机白名单（逗号分隔）
+    AIGENT_ALLOW_PRIVATE_LLM  =1 放行内网 api_base（默认拒绝）
+    CORS_ORIGINS              CORS 白名单（逗号分隔，默认本地 5173/3000）
+    AIGENT_DB_PATH            SQLite 断点库路径
+    AIGENT_PERSIST_TOPOLOGY   =1 启动时还原并持久化拓扑（默认 1）
+    CHECKPOINT_MAX            断点库上限（默认 2000，超出剪枝）
+    VITE_API_BASE             前端 REST 基址（默认 http://localhost:8000/api/v1）
+    VITE_WS_URL               前端 WS 地址（默认 ws://localhost:8000/ws/telemetry）
+
+══════════════════════════════════════════════════════════════════════
+九、给看的人的三个提示
+══════════════════════════════════════════════════════════════════════
+    1. 找功能先认"前缀"：后端 perfect_* 是现役（v2.8），不带 perfect 的
+       是 v1 旧版；前端 Neural* 的 5 个文件是未接线备件，别误以为已生效。
+    2. 想改数据格式只需要动一处：backend/models.py（前后端共用契约），
+       前端 Workbench.tsx 里的 interface 是它的镜像。
+    3. 看不懂某个节点的行为时，去 operator_registry.py 查算子表——
+       12 个算子 + 1 个兜底就是所有节点动作的完整清单。
+══════════════════════════════════════════════════════════════════════

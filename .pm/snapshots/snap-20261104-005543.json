@@ -1,0 +1,66 @@
+{
+  "taken_at": "2026-11-04T00:55:43.841Z",
+  "file": ".pm/snapshots/snap-20261104-005543.json",
+  "total_files": 5,
+  "total_loc": 3385,
+  "test_files": 1,
+  "skip_markers": 0,
+  "deps": [],
+  "by_ext": [
+    {
+      "ext": "html",
+      "files": 1,
+      "loc": 3159
+    },
+    {
+      "ext": "md",
+      "files": 2,
+      "loc": 127
+    },
+    {
+      "ext": "js",
+      "files": 1,
+      "loc": 89
+    },
+    {
+      "ext": "json",
+      "files": 1,
+      "loc": 10
+    }
+  ],
+  "top_dirs": [
+    {
+      "dir": ".",
+      "files": 4,
+      "loc": 3296
+    },
+    {
+      "dir": "test",
+      "files": 1,
+      "loc": 89
+    }
+  ],
+  "largest_files": [
+    {
+      "path": "neuron-workflow-v15.html",
+      "loc": 3159
+    },
+    {
+      "path": "PROJECT.md",
+      "loc": 101
+    },
+    {
+      "path": "test/verify-v15.js",
+      "loc": 89
+    },
+    {
+      "path": "AGENTS.md",
+      "loc": 26
+    },
+    {
+      "path": "package.json",
+      "loc": 10
+    }
+  ],
+  "index_coverage_pct": 0
+}

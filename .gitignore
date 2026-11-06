@@ -1,0 +1,9 @@
+node_modules/
+.venv/
+dist/
+*.db
+.env
+.env.local
+__pycache__/
+backend/data/
+.pm/runtime*

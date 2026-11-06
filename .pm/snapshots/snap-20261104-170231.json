@@ -1,0 +1,126 @@
+{
+  "taken_at": "2026-11-04T17:02:31.178Z",
+  "file": ".pm/snapshots/snap-20261104-170231.json",
+  "total_files": 22,
+  "total_loc": 2591,
+  "test_files": 6,
+  "skip_markers": 0,
+  "deps": [],
+  "by_ext": [
+    {
+      "ext": "py",
+      "files": 10,
+      "loc": 1270
+    },
+    {
+      "ext": "html",
+      "files": 1,
+      "loc": 953
+    },
+    {
+      "ext": "md",
+      "files": 4,
+      "loc": 244
+    },
+    {
+      "ext": "js",
+      "files": 1,
+      "loc": 67
+    },
+    {
+      "ext": "(无扩展名)",
+      "files": 2,
+      "loc": 36
+    },
+    {
+      "ext": "txt",
+      "files": 2,
+      "loc": 9
+    },
+    {
+      "ext": "ini",
+      "files": 1,
+      "loc": 7
+    },
+    {
+      "ext": "tag",
+      "files": 1,
+      "loc": 5
+    }
+  ],
+  "top_dirs": [
+    {
+      "dir": ".",
+      "files": 3,
+      "loc": 1139
+    },
+    {
+      "dir": "backend",
+      "files": 8,
+      "loc": 775
+    },
+    {
+      "dir": "backend/tests",
+      "files": 5,
+      "loc": 481
+    },
+    {
+      "dir": "backend/scripts",
+      "files": 1,
+      "loc": 79
+    },
+    {
+      "dir": "test",
+      "files": 1,
+      "loc": 67
+    },
+    {
+      "dir": "backend/.pytest_cache",
+      "files": 4,
+      "loc": 50
+    }
+  ],
+  "largest_files": [
+    {
+      "path": "aigent-workflow-studio.html",
+      "loc": 953
+    },
+    {
+      "path": "backend/engine.py",
+      "loc": 471
+    },
+    {
+      "path": "backend/tests/test_engine.py",
+      "loc": 189
+    },
+    {
+      "path": "PROJECT.md",
+      "loc": 160
+    },
+    {
+      "path": "backend/main.py",
+      "loc": 123
+    },
+    {
+      "path": "backend/tests/test_api.py",
+      "loc": 113
+    },
+    {
+      "path": "backend/tests/test_models.py",
+      "loc": 104
+    },
+    {
+      "path": "backend/models.py",
+      "loc": 89
+    },
+    {
+      "path": "backend/scripts/smoke_ws.py",
+      "loc": 79
+    },
+    {
+      "path": "test/verify-aigent-studio.js",
+      "loc": 67
+    }
+  ],
+  "index_coverage_pct": 0
+}

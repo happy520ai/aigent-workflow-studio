@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "goal": {
+    "objective": "严格按桌面《动画效果.txt》模板 1:1 落地前端动效引擎：BioluminescentCanvas 加色混合神经元画布、NodeMicroWidgets 节点微动效、NeuralWebGLShader 次表面散射着色器、NeuralMinimap 鹰眼小地图、neuralAudio 声效合成器、index.css、Workbench.tsx 全量合成版与 standalone-preview.html 独立预览包",
+    "acceptance": "1) frontend/src/components/BioluminescentCanvas.tsx、NodeMicroWidgets.tsx、NeuralWebGLShader.tsx、NeuralMinimap.tsx、utils/neuralAudio.ts、index.css、Workbench.tsx 与根目录 standalone-preview.html 共 8 个文件均按模板 1:1 存在；2) cd frontend && npx tsc -b && npx vite build 全绿无错误；3) README.md 追加第 17~20 板块架构文档",
+    "note": "权威模板为桌面《动画效果.txt》（2976 行全量已读）。范围：仅前端动效层，不改后端 FastAPI。Workbench 以模板第五节\"零补丁全量合成版\"为准整体替换。",
+    "created": "2026-11-05T02:42:01.655Z",
+    "updated": "2026-11-05T02:42:01.655Z"
+  },
+  "settings": {
+    "enabled": false,
+    "max_concurrency": 3,
+    "max_rounds": 40,
+    "max_hours": 24,
+    "max_total_tokens": null
+  },
+  "run": {
+    "active_run_id": null,
+    "active_run_kind": null,
+    "round_baseline": null,
+    "round_count": 0,
+    "settled_run_ids": [],
+    "completed_at": null,
+    "completed_note": "",
+    "tokens_used": 0,
+    "protocol": {
+      "tokens_unknown_rounds": 0,
+      "evidence_downgrades": 0
+    },
+    "stall_rounds": 0,
+    "consecutive_failures": 0,
+    "last_round_at": null,
+    "started_at": null,
+    "paused_reason": null,
+    "paused_at": null
+  },
+  "log": [
+    {
+      "at": "2026-11-05T02:42:01.655Z",
+      "kind": "goal",
+      "note": "严格按桌面《动画效果.txt》模板 1:1 落地前端动效引擎：BioluminescentCanvas 加色混合神经元画布、NodeMicroWidgets 节点微动效、NeuralWebGLShader 次表面散射着色器、NeuralMinimap 鹰眼小地图、neuralAudio 声效合成器、index.css、Workbench.tsx 全量合成版与 standalone-preview.html 独立预览包"
+    }
+  ],
+  "updated": "2026-11-05T02:42:01.655Z"
+}

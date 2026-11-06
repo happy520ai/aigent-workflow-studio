@@ -1,0 +1,41 @@
+{
+  "seq": 30,
+  "milestones": [
+    {
+      "id": "M27",
+      "title": "后端服务 · AIGENT-WORKFLOW STUDIO v2.8 FastAPI",
+      "goal": "为 aigent-workflow-studio v2.8 前端提供可运行的 FastAPI 后端：DAG 引擎、实时遥测、REST API 与全量测试",
+      "status": "done",
+      "order": 27,
+      "created": "2026-11-04T16:38:17.508Z",
+      "updated": "2026-11-04T17:03:42.910Z"
+    },
+    {
+      "id": "M28",
+      "title": "终极版 · 动态拓扑后端 + React 工作台（1:1）",
+      "goal": "按用户终极版文档 1:1 落地：动态拓扑编译+SQLite 断点后端（perfect_engine/perfect_main）与 React+Vite+Tailwind 可交互工作台（Workbench.tsx），并全量测试联调",
+      "status": "done",
+      "order": 28,
+      "created": "2026-11-04T17:08:19.510Z",
+      "updated": "2026-11-04T17:56:34.844Z"
+    },
+    {
+      "id": "M29",
+      "title": "万象台 · 动效引擎 1:1（动画效果.txt 权威落地）",
+      "goal": "严格按桌面《动画效果.txt》模板 1:1 落地前端动效引擎 8 文件并全绿构建",
+      "status": "done",
+      "order": 29,
+      "created": "2026-11-05T02:42:11.202Z",
+      "updated": "2026-11-05T02:51:11.833Z"
+    },
+    {
+      "id": "M30",
+      "title": "v2.8 修复与加固：前后端接线 + 安全 + 持久化 + 测试可信",
+      "goal": "按执行模板把演示级原型修成前后端真正接通、安全可用、测试可信的版本：pytest 全绿、前端 build 零错误、verify-perfect-workbench.js 零失败、端到端验收清单通过",
+      "status": "done",
+      "order": 4,
+      "created": "2026-11-05T16:21:16.764Z",
+      "updated": "2026-11-06T00:31:25.300Z"
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "schema_version": 2,
+  "run_at": "2026-11-05T02:51:00.838Z",
+  "ok": true,
+  "reported_ok": true,
+  "execute": true,
+  "evidence_level": "execution_only",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v25.8.1"
+  },
+  "source": {
+    "before": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "33459ff4bf1244d411b9e247fccfb53adaddc4949308873d3e4a26b22e322653",
+      "files": 55,
+      "bytes": 694676
+    },
+    "after": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "33459ff4bf1244d411b9e247fccfb53adaddc4949308873d3e4a26b22e322653",
+      "files": 55,
+      "bytes": 694676
+    },
+    "stable": true
+  },
+  "results": [
+    {
+      "unit_root": "E:\\workflow工作台\\backend",
+      "kind": "test",
+      "command": "python",
+      "args": [
+        "-m",
+        "pytest"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 18197,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 104,
+        "stderr_bytes": 0,
+        "output_sha256": "e18bfe0842883163516e0457ccad2ba263cb47652704e9972452035c08ca1ead",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    },
+    {
+      "unit_root": "E:\\workflow工作台\\frontend",
+      "kind": "test",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "test"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 5510,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 583,
+        "stderr_bytes": 0,
+        "output_sha256": "33e0f7870830c402528933caa570052772fda47a8d4a1a911b3d7caa6f962da1",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    },
+    {
+      "unit_root": "E:\\workflow工作台\\frontend",
+      "kind": "build",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "build"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 5575,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 584,
+        "stderr_bytes": 0,
+        "output_sha256": "763453379e005496760512665c8e786b37d1782ceb6ef9cc4a5f28afbf6d3c22",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    }
+  ]
+}

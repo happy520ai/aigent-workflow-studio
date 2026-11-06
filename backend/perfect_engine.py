@@ -1,0 +1,913 @@
+# backend/perfect_engine.py
+import asyncio
+import json
+import math
+import os
+import random
+import sqlite3
+import time
+import uuid
+from collections import defaultdict, deque
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set
+
+import httpx
+import psutil
+from fastapi import WebSocket
+
+from ast_validator import FrontendASTValidator
+from models import (
+    ComponentItem,
+    ControlAction,
+    NeuralEdge,
+    NodePosition,
+    RadarMetrics,
+    SystemTelemetry,
+    WorkflowNode,
+    WorkflowSnapshot,
+    WorkflowStatus,
+)
+from operator_registry import NeuralOperatorRegistry
+
+
+class CheckpointStore:
+    """基于 SQLite 的神经元时间旅行断点持久化存储引擎"""
+
+    # 断点库上限：超出后按时间倒序剪枝，防止长时间运行撑爆磁盘
+    CHECKPOINT_MAX = int(os.getenv("CHECKPOINT_MAX", "2000"))
+
+    def __init__(self, db_path: Optional[str] = None) -> None:
+        # db_path 缺省时优先取环境变量 AIGENT_DB_PATH，再回落到工作目录默认库
+        self.db_path = db_path or os.getenv("AIGENT_DB_PATH") or "aigent_checkpoints.db"
+        self._init_db()
+
+    def _init_db(self) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS checkpoints (
+                    checkpoint_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    node_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    state_payload TEXT NOT NULL,
+                    generated_code TEXT NOT NULL
+                )
+                """
+            )
+            # 旧库（按旧 DDL 重建、缺 topology_json 列）无损迁移：补列即可
+            existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(checkpoints)").fetchall()]
+            if "topology_json" not in existing_cols:
+                conn.execute("ALTER TABLE checkpoints ADD COLUMN topology_json TEXT DEFAULT ''")
+            # 拓扑持久化单行表（id 恒为 1）
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS topology (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    nodes_json TEXT NOT NULL,
+                    edges_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.commit()
+
+    async def save_checkpoint(
+        self,
+        run_id: str,
+        node_id: str,
+        state_payload: Dict[str, Any],
+        generated_code: str,
+        topology: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        checkpoint_id = f"ckpt_{uuid.uuid4().hex[:8]}"
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        payload_str = json.dumps(state_payload, ensure_ascii=False)
+        topology_str = json.dumps(topology, ensure_ascii=False) if topology else ""
+
+        def _insert() -> None:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO checkpoints
+                        (checkpoint_id, run_id, node_id, timestamp, state_payload, generated_code, topology_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (checkpoint_id, run_id, node_id, ts, payload_str, generated_code, topology_str),
+                )
+                # 断点剪枝：只保留最近 CHECKPOINT_MAX 条
+                conn.execute(
+                    """
+                    DELETE FROM checkpoints WHERE checkpoint_id NOT IN
+                    (SELECT checkpoint_id FROM checkpoints ORDER BY timestamp DESC LIMIT ?)
+                    """,
+                    (self.CHECKPOINT_MAX,),
+                )
+                conn.commit()
+
+        await asyncio.to_thread(_insert)
+        return checkpoint_id
+
+    async def list_checkpoints(self, limit: int = 20) -> List[Dict[str, Any]]:
+        def _query() -> List[Dict[str, Any]]:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT * FROM checkpoints ORDER BY timestamp DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+                # 键集合保持原有 6 个（不暴露 topology_json，契约不变）
+                return [
+                    {
+                        "checkpoint_id": r["checkpoint_id"],
+                        "run_id": r["run_id"],
+                        "node_id": r["node_id"],
+                        "timestamp": r["timestamp"],
+                        "state_payload": json.loads(r["state_payload"]),
+                        "generated_code": r["generated_code"],
+                    }
+                    for r in rows
+                ]
+
+        return await asyncio.to_thread(_query)
+
+    async def get_checkpoint(self, checkpoint_id: str) -> Optional[Dict[str, Any]]:
+        """按 id 精确取回断点完整行（含 topology_json），不再受 list 窗口限制"""
+
+        def _query() -> Optional[Dict[str, Any]]:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT * FROM checkpoints WHERE checkpoint_id = ?",
+                    (checkpoint_id,),
+                ).fetchone()
+                if row is None:
+                    return None
+                return {
+                    "checkpoint_id": row["checkpoint_id"],
+                    "run_id": row["run_id"],
+                    "node_id": row["node_id"],
+                    "timestamp": row["timestamp"],
+                    "state_payload": json.loads(row["state_payload"]),
+                    "generated_code": row["generated_code"],
+                    "topology_json": json.loads(row["topology_json"]) if row["topology_json"] else None,
+                }
+
+        return await asyncio.to_thread(_query)
+
+
+class ConnectionManager:
+    """全双工 WebSocket 神经突触广播中心"""
+
+    def __init__(self) -> None:
+        self.active_connections: Set[WebSocket] = set()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.active_connections.add(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self.active_connections.discard(websocket)
+
+    async def broadcast(self, event_type: str, payload: Any) -> None:
+        if not self.active_connections:
+            return
+        message = json.dumps(
+            {
+                "event": event_type,
+                "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
+                "data": payload,
+            },
+            ensure_ascii=False,
+        )
+        dead: Set[WebSocket] = set()
+        for ws in self.active_connections:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.add(ws)
+        for ws in dead:
+            self.active_connections.discard(ws)
+
+
+class PerfectNeuralEngine:
+    """集成动态 DAG 拓扑编译、12 算子内核、AST 自动自愈与 SQLite 时间旅行的终极引擎"""
+
+    def __init__(self, ws_manager: ConnectionManager, persist_topology: bool = False) -> None:
+        self.ws_manager = ws_manager
+        self.persist_topology = persist_topology
+        self.checkpoint_store = CheckpointStore()
+        self.operator_registry = NeuralOperatorRegistry()
+        self.status: WorkflowStatus = WorkflowStatus.RUNNING
+        self.selected_node_id: str = "node_ui_gen"
+        self.current_run_id: str = f"run_{uuid.uuid4().hex[:6]}"
+
+        # 运行时大模型配置（可通过前端设置面板动态热更新）
+        self.llm_config: Dict[str, str] = {
+            "api_key": os.getenv("LLM_API_KEY", "").strip(),
+            "api_base": os.getenv("LLM_API_BASE", "https://api.openai.com/v1").rstrip("/"),
+            "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
+        }
+
+        self.latest_sandbox_html: str = self._default_sandbox_template("初始化智能体监控面板 v2.8")
+        self.shared_memory_bus: Dict[str, Any] = {
+            "last_event": "USER_CLICK_GENERATE_DASHBOARD",
+            "intent": "create_cyber_analytics_card",
+            "co_agent_review": "PASS_WITH_99.2%_CONFIDENCE",
+            "dom_hydration_status": "READY",
+        }
+
+        self._pause_gate = asyncio.Event()
+        self._pause_gate.set()
+        self._debug_mode: bool = False
+        self._debug_step_gate = asyncio.Event()
+
+        # 数据流：每个节点的最近输出，供下游节点经连线消费（数据沿边流动）
+        self.node_outputs: Dict[str, Any] = {}
+        # 运行记录：每轮 DAG 执行的完整档案（错误隔离与 GET /runs 数据源）
+        self.run_history: deque = deque(maxlen=20)
+        # 最近 50 次节点执行统计窗口（雷达图真实指标推导来源）
+        self._recent_executions: deque = deque(maxlen=50)
+        # 环路兜底命中标志：compile_topological_layers 命中反馈层时置位，每轮至多告警一次
+        self._cycle_layer_hit: bool = False
+        self._round_seq: int = 0
+
+        self._engine_task: Optional[asyncio.Task] = None
+        self._telemetry_task: Optional[asyncio.Task] = None
+        self._phase: float = 0.0
+
+        self.cpu_history: List[float] = [32.0, 45.0, 28.0, 64.0, 41.0, 53.0, 38.0, 62.0, 49.0, 55.0]
+        self.memory_history: List[float] = [58.0, 58.5, 59.2, 58.8, 60.1, 59.5, 60.4, 60.0, 61.2, 60.8]
+        self.ecg_waveform: List[float] = [0.0, 0.2, -0.15, 0.85, -0.45, 0.3, 0.0, 0.05, -0.05, 0.1]
+        self.radar_metrics = RadarMetrics(
+            radar_perception=92.0,
+            responsiveness=96.5,
+            accuracy=99.2,
+            concurrency=88.0,
+            stability=95.4,
+        )
+        self.terminal_logs: List[str] = [
+            "Agent initialized: 99.2%...",
+            "Agent initialized: 99.2%...",
+            "Agent initialized: 99.2%...",
+            "Agent initialized: 99.2%...",
+            "Agent initialized: 99.2%...",
+            "Agent initialized: 99.2%...",
+            "Agent initialized: 99.2%...",
+            "Success...",
+            "[System] Deploying to Sandbox...",
+            "[System] Deploying to Sandbox...",
+        ]
+
+        self.components: List[ComponentItem] = self._init_components()
+        self.nodes: Dict[str, WorkflowNode] = self._init_nodes()
+        self.edges: List[NeuralEdge] = self._init_edges()
+
+        # 拓扑持久化：启动时从 SQLite 还原上次保存的节点与连线（失败则保留默认拓扑）
+        if self.persist_topology:
+            self._load_topology_sync()
+
+    def _save_topology_sync(self) -> None:
+        """同步写拓扑单行表（供 asyncio.to_thread 调度）"""
+        with sqlite3.connect(self.checkpoint_store.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO topology (id, nodes_json, edges_json, updated_at) VALUES (1, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    nodes_json = excluded.nodes_json,
+                    edges_json = excluded.edges_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    json.dumps([n.model_dump() for n in self.nodes.values()], ensure_ascii=False),
+                    json.dumps([e.model_dump() for e in self.edges], ensure_ascii=False),
+                    datetime.now().isoformat(),
+                ),
+            )
+            conn.commit()
+
+    async def save_topology(self) -> None:
+        """将当前节点与连线持久化到 SQLite（增删节点/连线、位置与配置变更、RESET 后调用）"""
+        if not self.persist_topology:
+            return
+        try:
+            await asyncio.to_thread(self._save_topology_sync)
+        except Exception as exc:
+            await self.append_log(f"[Warn] 拓扑持久化失败: {exc}")
+
+    def _load_topology_sync(self) -> None:
+        """启动时同步还原拓扑（__init__ 内可直接同步读）"""
+        try:
+            with sqlite3.connect(self.checkpoint_store.db_path) as conn:
+                has_table = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='topology'"
+                ).fetchone()
+                if not has_table:
+                    return
+                row = conn.execute("SELECT nodes_json, edges_json FROM topology WHERE id = 1").fetchone()
+            if not row:
+                return
+            nodes_data = json.loads(row[0])
+            edges_data = json.loads(row[1])
+            if nodes_data:
+                self.nodes = {n["id"]: WorkflowNode(**n) for n in nodes_data}
+            if edges_data:
+                self.edges = [NeuralEdge(**e) for e in edges_data]
+        except Exception:
+            # 还原失败（库损坏/契约变更）时保留默认拓扑，不阻断启动
+            pass
+
+    def _default_sandbox_template(self, title: str) -> str:
+        ts = datetime.now().strftime("%H:%M:%S")
+        return f"""<div class="p-4 bg-slate-900/95 text-slate-100 rounded-xl border border-cyan-500/40 shadow-lg font-sans">
+  <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+    <span class="text-xs font-bold text-cyan-400">⚡ DOM RENDERER LIVE SANDBOX</span>
+    <span class="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full">Hydrated @ {ts}</span>
+  </div>
+  <h3 class="text-sm font-semibold text-white mb-2">{title}</h3>
+  <div class="grid grid-cols-3 gap-2 text-center">
+    <div class="p-2 rounded bg-slate-800/80 border border-slate-700">
+      <div class="text-[10px] text-slate-400">突触延迟</div>
+      <div class="text-sm font-bold text-emerald-400">8ms</div>
+    </div>
+    <div class="p-2 rounded bg-slate-800/80 border border-slate-700">
+      <div class="text-[10px] text-slate-400">意图置信度</div>
+      <div class="text-sm font-bold text-cyan-400">99.2%</div>
+    </div>
+    <div class="p-2 rounded bg-slate-800/80 border border-slate-700">
+      <div class="text-[10px] text-slate-400">UI 生成率</div>
+      <div class="text-sm font-bold text-purple-400">98.6%</div>
+    </div>
+  </div>
+</div>"""
+
+    def _init_components(self) -> List[ComponentItem]:
+        return [
+            ComponentItem(id="trig_events", category="触发器", category_en="Triggers", name="页面事件", name_en="Events", icon="Zap", theme_color="#10b981"),
+            ComponentItem(id="trig_schedule", category="触发器", category_en="Triggers", name="定时触发", name_en="Schedule", icon="Clock", theme_color="#10b981"),
+            ComponentItem(id="perc_nlu", category="感知解析", category_en="Perception", name="自然语言理解", name_en="NLU", icon="MessageSquare", theme_color="#38bdf8"),
+            ComponentItem(id="perc_vision", category="感知解析", category_en="Perception", name="视觉输入", name_en="Vision", icon="Eye", theme_color="#38bdf8"),
+            ComponentItem(id="agent_intent", category="AI 智能体", category_en="Agents", name="意图分析", name_en="Intent Agent", icon="Network", theme_color="#6366f1"),
+            ComponentItem(id="agent_codegen", category="AI 智能体", category_en="Agents", name="代码生成", name_en="CodeGen", icon="Code", theme_color="#6366f1"),
+            ComponentItem(id="logic_transform", category="数据逻辑", category_en="Logic", name="数据转换", name_en="Transform", icon="ArrowLeftRight", theme_color="#a855f7"),
+            ComponentItem(id="logic_state", category="数据逻辑", category_en="Logic", name="状态管理", name_en="State", icon="Database", theme_color="#a855f7"),
+            ComponentItem(id="fe_assemble", category="前端渲染", category_en="Frontend", name="组件装配", name_en="Assemble", icon="LayoutGrid", theme_color="#38bdf8"),
+            ComponentItem(id="fe_render", category="前端渲染", category_en="Frontend", name="DOM 渲染", name_en="Render", icon="Terminal", theme_color="#38bdf8"),
+            ComponentItem(id="dep_test", category="部署", category_en="Deploy", name="沙盒测试", name_en="Test", icon="FlaskConical", theme_color="#ec4899"),
+            ComponentItem(id="dep_publish", category="部署", category_en="Deploy", name="发布", name_en="Publish", icon="Rocket", theme_color="#ec4899"),
+        ]
+
+    def _init_nodes(self) -> Dict[str, WorkflowNode]:
+        base_cfg = {
+            "name": "Agentinightik.eod",
+            "anenet5": {
+                "enalen": "Pna",
+                "data": {
+                    "name": "智能体I",
+                    "type": "准确度",
+                    "temndary": "UI Generation",
+                },
+            },
+        }
+        items = [
+            WorkflowNode(
+                id="node_event_capturer",
+                type="event_capturer",
+                title="事件捕获",
+                subtitle="(Event Capturer)",
+                position=NodePosition(x=55, y=235),
+                theme_color="#10b981",
+                status="active",
+                progress=100.0,
+                confidence=99.2,
+                latency_ms=8,
+                config_json={**base_cfg, "stream_source": "DOM_Observer_v2"},
+            ),
+            WorkflowNode(
+                id="node_intent_agent",
+                type="intent_agent",
+                title="意图识别智能体",
+                subtitle="(Intent Agent)",
+                position=NodePosition(x=305, y=235),
+                theme_color="#6366f1",
+                status="active",
+                progress=100.0,
+                confidence=99.2,
+                latency_ms=8,
+                config_json={**base_cfg, "model": "neural-intent-v2.8"},
+            ),
+            WorkflowNode(
+                id="node_ui_gen",
+                type="ui_generation",
+                title="前端UI生成",
+                subtitle="(UI Generation Agent)",
+                position=NodePosition(x=610, y=95),
+                theme_color="#38bdf8",
+                status="active",
+                progress=98.6,
+                confidence=98.6,
+                latency_ms=8,
+                config_json=base_cfg,
+            ),
+            WorkflowNode(
+                id="node_co_agent",
+                type="co_agent",
+                title="多Agent协作器",
+                subtitle="(Co-Agent)",
+                position=NodePosition(x=610, y=305),
+                theme_color="#a855f7",
+                status="active",
+                progress=99.2,
+                confidence=99.2,
+                latency_ms=8,
+                config_json={**base_cfg, "consensus_protocol": "Byzantine_Synapse"},
+            ),
+            WorkflowNode(
+                id="node_dom_renderer",
+                type="dom_renderer",
+                title="页面渲染引擎",
+                subtitle="(DOM Renderer)",
+                position=NodePosition(x=610, y=435),
+                theme_color="#3b82f6",
+                status="success",
+                progress=100.0,
+                confidence=99.2,
+                latency_ms=8,
+                config_json={**base_cfg, "sandbox_isolation": "ShadowDOM_Strict"},
+            ),
+        ]
+        return {n.id: n for n in items}
+
+    def _init_edges(self) -> List[NeuralEdge]:
+        return [
+            NeuralEdge(id="edge_1_2", source="node_event_capturer", target="node_intent_agent", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
+            NeuralEdge(id="edge_2_3a", source="node_intent_agent", target="node_ui_gen", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
+            NeuralEdge(id="edge_2_3b", source="node_intent_agent", target="node_co_agent", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
+            NeuralEdge(id="edge_2_3c", source="node_intent_agent", target="node_dom_renderer", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
+        ]
+
+    def compile_topological_layers(self) -> List[List[str]]:
+        in_degree: Dict[str, int] = {nid: 0 for nid in self.nodes}
+        adj: Dict[str, List[str]] = defaultdict(list)
+
+        for edge in self.edges:
+            if edge.source in self.nodes and edge.target in self.nodes:
+                adj[edge.source].append(edge.target)
+                in_degree[edge.target] += 1
+
+        queue = deque([nid for nid, deg in in_degree.items() if deg == 0])
+        layers: List[List[str]] = []
+        visited_count = 0
+
+        while queue:
+            current_layer = list(queue)
+            queue.clear()
+            layers.append(current_layer)
+            visited_count += len(current_layer)
+
+            for u in current_layer:
+                for v in adj[u]:
+                    in_degree[v] -= 1
+                    if in_degree[v] == 0:
+                        queue.append(v)
+
+        if visited_count < len(self.nodes):
+            # Cyclic Agent Graph：环上节点作为反馈层兜底（Kahn 算法无法消化的剩余节点整体入反馈层）
+            remaining = [nid for nid, deg in in_degree.items() if deg > 0]
+            layers.append(remaining)
+            self._cycle_layer_hit = True
+
+        return layers
+
+    def would_create_cycle(self, source: str, target: str) -> bool:
+        """判断新增 source->target 连线是否会成环：从 target 沿现有边 DFS，能回到 source 即为真"""
+        if source not in self.nodes or target not in self.nodes:
+            return False
+        seen: Set[str] = set()
+        frontier = [target]
+        while frontier:
+            cur = frontier.pop()
+            if cur == source:
+                return True
+            if cur in seen:
+                continue
+            seen.add(cur)
+            for e in self.edges:
+                if e.source == cur:
+                    frontier.append(e.target)
+        return False
+
+    def _failed_downstream(self, failed: Set[str]) -> Set[str]:
+        """计算失败节点的全部传递下游（沿边 BFS 可达），用于单节点错误隔离的 skipped 标记"""
+        reach: Set[str] = set()
+        frontier = list(failed)
+        while frontier:
+            cur = frontier.pop()
+            for e in self.edges:
+                if e.source == cur and e.target in self.nodes and e.target not in reach:
+                    reach.add(e.target)
+                    frontier.append(e.target)
+        return reach
+
+    async def append_log(self, line: str) -> None:
+        self.terminal_logs.append(line)
+        if len(self.terminal_logs) > 60:
+            self.terminal_logs = self.terminal_logs[-60:]
+        await self.ws_manager.broadcast(
+            "terminal_log",
+            {"line": line, "logs": self.terminal_logs[-12:]},
+        )
+
+    async def _execute_single_node(self, node: WorkflowNode) -> None:
+        await self._pause_gate.wait()
+        if self._debug_mode:
+            await self.append_log(f"[Debug] 断点捕获 -> {node.title}，等待下一步指令...")
+            await self._debug_step_gate.wait()
+            self._debug_step_gate.clear()
+
+        t0 = time.perf_counter()
+        api_key = self.llm_config.get("api_key", "")
+
+        # 0. 收集上游节点最近输出作为本节点输入（数据真正沿连线流动）
+        inputs: Dict[str, Any] = {
+            e.source: self.node_outputs.get(e.source)
+            for e in self.edges
+            if e.target == node.id and e.source in self.nodes
+        }
+
+        # 1. 调用 12 算子注册表执行对应算子逻辑（type 先经别名表归一化，上游输出经 inputs 注入）
+        op_result = await self.operator_registry.execute(
+            operator_type=node.type,
+            node_config=node.config_json,
+            shared_bus=self.shared_memory_bus,
+            inputs=inputs,
+        )
+
+        # 2. 若为前端 UI 生成或代码生成节点，驱动大模型或内置内核并经过 AST 自愈编译器
+        if node.type in ("ui_generation", "agent_codegen"):
+            raw_html = ""
+            if api_key:
+                try:
+                    # 禁止跟随重定向：防止 SSRF 借 30x 跳转绕过 api_base 校验
+                    # 超时需覆盖慢速模型的长文本生成（如讯飞 4.0Ultra 生成 1024 tokens 约 10~15s），
+                    # 10s 会导致 ReadTimeout 被静默降级为内置模板
+                    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
+                        resp = await client.post(
+                            f"{self.llm_config['api_base']}/chat/completions",
+                            headers={"Authorization": f"Bearer {api_key}"},
+                            json={
+                                "model": self.llm_config["model"],
+                                "messages": [
+                                    {"role": "system", "content": "Generate a compact Tailwind HTML card snippet for a cyberpunk AI telemetry widget. Return pure HTML only."},
+                                    {
+                                        "role": "user",
+                                        "content": json.dumps(
+                                            {"config": node.config_json, "inputs": inputs},
+                                            ensure_ascii=False,
+                                        ),
+                                    },
+                                ],
+                                "max_tokens": 1024,
+                            },
+                        )
+                        resp.raise_for_status()
+                        raw_html = resp.json()["choices"][0]["message"]["content"]
+                except Exception as exc:
+                    # 不再静默吞掉：LLM 失败必须留痕后降级内置模板
+                    await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {exc}")
+                    await asyncio.sleep(0.3)
+                    raw_html = self._default_sandbox_template(
+                        f"AI 生成组件 #{random.randint(100, 999)} ({node.config_json.get('name', 'Agent')})"
+                    )
+            else:
+                await asyncio.sleep(random.uniform(0.28, 0.5))
+                raw_html = self._default_sandbox_template(
+                    f"实时神经元视图 · 置信度 {node.confidence}%"
+                )
+
+            ast_report = FrontendASTValidator.validate_and_heal(raw_html)
+            self.latest_sandbox_html = ast_report.healed_code
+            self.shared_memory_bus["ast_validation"] = {
+                "is_valid": ast_report.is_valid,
+                "security_score": ast_report.security_score,
+                "dom_depth": ast_report.dom_depth,
+                "element_count": ast_report.element_count,
+            }
+        else:
+            await asyncio.sleep(random.uniform(0.25, 0.45))
+
+        # 3. 真实测量的执行耗时与算子返回指标（不再夹逼 6~14ms、不再按节点 id 硬编码）
+        elapsed_ms = max(1, int((time.perf_counter() - t0) * 1000))
+        node.latency_ms = elapsed_ms
+        node.confidence = float(op_result.get("confidence", 99.2))
+        node.progress = 100.0
+        node.status = "success"
+        node.last_error = None
+
+        # 4. 输出写入节点输出表供下游消费；shared_memory_bus 保留向后兼容
+        self.node_outputs[node.id] = op_result.get("output")
+
+        self.shared_memory_bus[node.id] = {
+            "title": node.title,
+            "confidence": node.confidence,
+            "latency_ms": node.latency_ms,
+            "updated_at": datetime.now().isoformat(),
+        }
+        await self.checkpoint_store.save_checkpoint(
+            run_id=self.current_run_id,
+            node_id=node.id,
+            state_payload=self.shared_memory_bus,
+            generated_code=self.latest_sandbox_html,
+            # 断点携带当下拓扑快照：时间旅行回滚时节点与连线可随断点还原
+            topology={
+                "nodes": [n.model_dump() for n in self.nodes.values()],
+                "edges": [e.model_dump() for e in self.edges],
+            },
+        )
+
+        await self.append_log(f"Agent initialized: {node.confidence}%...")
+        await self.ws_manager.broadcast(
+            "node_update",
+            {
+                "node": node.model_dump(),
+                "sandbox_html": self.latest_sandbox_html,
+                "shared_memory_bus": self.shared_memory_bus,
+            },
+        )
+
+    def _compute_radar_metrics(self) -> RadarMetrics:
+        """由最近 50 次节点执行统计与当前拓扑推导真实雷达指标（不再随机伪造）"""
+        total = max(len(self.nodes), 1)
+        if not self._recent_executions:
+            return RadarMetrics()
+        confs = [r["confidence"] for r in self._recent_executions]
+        lats = [r["latency_ms"] for r in self._recent_executions]
+        ok_count = sum(1 for r in self._recent_executions if r["status"] in ("success", "active"))
+        max_layer_width = max((len(l) for l in self.compile_topological_layers()), default=1)
+
+        accuracy = round(sum(confs) / len(confs), 1)
+        responsiveness = round(max(0.0, min(100.0, 100.0 - (sum(lats) / len(lats)) / 20.0)), 1)
+        stability = round(ok_count / len(self._recent_executions) * 100.0, 1)
+        concurrency = round(max_layer_width / total * 100.0, 1)
+        radar_perception = round(
+            sum(1 for n in self.nodes.values() if n.status in ("success", "active")) / total * 100.0, 1
+        )
+        return RadarMetrics(
+            radar_perception=radar_perception,
+            responsiveness=responsiveness,
+            accuracy=accuracy,
+            concurrency=concurrency,
+            stability=stability,
+        )
+
+    async def _run_dag_round(self) -> None:
+        """执行一轮完整 DAG：编译分层、单节点错误隔离、运行记录归档与真实雷达统计"""
+        layers = self.compile_topological_layers()
+        self._round_seq += 1
+        round_id = f"{self.current_run_id}_r{self._round_seq}"
+        started_at = datetime.now().isoformat()
+
+        # 环路兜底命中时每轮至多告警一次（标志由 compile_topological_layers 置位）
+        if self._cycle_layer_hit:
+            self._cycle_layer_hit = False
+            await self.append_log(
+                "[Warn] 检测到环路拓扑：环上节点作为反馈层兜底执行 (Cyclic Agent Graph)"
+            )
+
+        failed: Set[str] = set()
+        node_records: List[Dict[str, Any]] = []
+        blocked = self._failed_downstream(failed)  # 初始为空集
+
+        for layer_nodes in layers:
+            runnable: List[WorkflowNode] = []
+            for nid in layer_nodes:
+                if nid not in self.nodes:
+                    continue
+                node = self.nodes[nid]
+                if nid in blocked:
+                    # 上游失败：本节点标记 skipped 并跳过执行（单节点错误隔离）
+                    node.status = "skipped"
+                    node.progress = 0.0
+                    node_records.append(
+                        {"id": nid, "status": "skipped", "latency_ms": node.latency_ms, "error": None}
+                    )
+                    self._recent_executions.append(
+                        {"confidence": node.confidence, "latency_ms": node.latency_ms, "status": "skipped"}
+                    )
+                else:
+                    runnable.append(node)
+
+            if runnable:
+                results = await asyncio.gather(
+                    *(self._execute_single_node(n) for n in runnable),
+                    return_exceptions=True,
+                )
+                for node, res in zip(runnable, results):
+                    if isinstance(res, asyncio.CancelledError):
+                        raise res
+                    if isinstance(res, BaseException):
+                        # 某节点抛异常：标记 error 并留痕，其他分支继续（整轮不中断）
+                        node.status = "error"
+                        node.last_error = str(res)
+                        node.progress = 0.0
+                        failed.add(node.id)
+                        node_records.append(
+                            {"id": node.id, "status": "error", "latency_ms": node.latency_ms, "error": node.last_error}
+                        )
+                        self._recent_executions.append(
+                            {"confidence": node.confidence, "latency_ms": node.latency_ms, "status": "error"}
+                        )
+                        await self.append_log(f"[Error] 节点 {node.title}: {res}")
+                    else:
+                        node_records.append(
+                            {"id": node.id, "status": node.status, "latency_ms": node.latency_ms, "error": node.last_error}
+                        )
+                        self._recent_executions.append(
+                            {"confidence": node.confidence, "latency_ms": node.latency_ms, "status": node.status}
+                        )
+                # 本层出现失败后，重新计算受阻塞的传递下游
+                blocked = self._failed_downstream(failed)
+
+        # 运行记录归档（GET /runs 数据源，最多保留 20 轮）
+        self.run_history.append(
+            {
+                "round_id": round_id,
+                "started_at": started_at,
+                "finished_at": datetime.now().isoformat(),
+                "nodes": node_records,
+            }
+        )
+
+        # 雷达图由真实统计推导
+        self.radar_metrics = self._compute_radar_metrics()
+        await self.append_log("Success...")
+        await self.append_log("[System] Deploying to Sandbox...")
+
+    async def _dag_execution_loop(self) -> None:
+        while True:
+            try:
+                await self._run_dag_round()
+                await asyncio.sleep(1.6)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                await self.append_log(f"[Error] Topological Executor: {exc}")
+                await asyncio.sleep(1.0)
+
+    async def _telemetry_loop(self) -> None:
+        while True:
+            try:
+                self._phase += 0.45
+                # 真实系统采样：psutil.cpu_percent 首次调用返回 0.0 属正常，不再用正弦波伪造
+                cpu_val = psutil.cpu_percent(interval=None)
+                mem_val = round(psutil.virtual_memory().percent, 1)
+
+                self.cpu_history = (self.cpu_history + [cpu_val])[-16:]
+                self.memory_history = (self.memory_history + [mem_val])[-16:]
+
+                # ECG 心电波形为纯装饰性随机生成，非真实指标
+                step_idx = int(self._phase * 2) % 7
+                ecg_pt = 0.88 if step_idx == 0 else (-0.42 if step_idx == 1 else round(math.sin(self._phase * 3) * 0.14, 2))
+                self.ecg_waveform = (self.ecg_waveform + [ecg_pt])[-20:]
+
+                # 遥测瘦身：sandbox_html 与 shared_memory_bus 已由 node_update 携带，不再重复下发
+                await self.ws_manager.broadcast(
+                    "telemetry_tick",
+                    {
+                        "project_status": self.status.value,
+                        "cpu_history": self.cpu_history,
+                        "memory_history": self.memory_history,
+                        "ecg_waveform": self.ecg_waveform,
+                        "radar_metrics": self.radar_metrics.model_dump(),
+                        "edges": [e.model_dump() for e in self.edges],
+                    },
+                )
+                await asyncio.sleep(0.5)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                await asyncio.sleep(0.5)
+
+    def start(self) -> None:
+        if not self._engine_task or self._engine_task.done():
+            self._engine_task = asyncio.create_task(self._dag_execution_loop())
+        if not self._telemetry_task or self._telemetry_task.done():
+            self._telemetry_task = asyncio.create_task(self._telemetry_loop())
+
+    async def stop(self) -> None:
+        for t in (self._engine_task, self._telemetry_task):
+            if t and not t.done():
+                t.cancel()
+
+    def get_snapshot(self) -> WorkflowSnapshot:
+        return WorkflowSnapshot(
+            version="v2.8",
+            project_status=self.status,
+            selected_node_id=self.selected_node_id,
+            nodes=list(self.nodes.values()),
+            edges=self.edges,
+            telemetry=SystemTelemetry(
+                cpu_history=self.cpu_history,
+                memory_history=self.memory_history,
+                ecg_waveform=self.ecg_waveform,
+                radar_metrics=self.radar_metrics,
+            ),
+            terminal_logs=self.terminal_logs[-12:],
+        )
+
+    async def handle_control(self, action: ControlAction) -> WorkflowSnapshot:
+        if action == ControlAction.RUN:
+            self._debug_mode = False
+            self._debug_step_gate.set()
+            self._pause_gate.set()
+            self.status = WorkflowStatus.RUNNING
+            await self.append_log("[System] 神经元拓扑图恢复全速运行 (RUNNING)...")
+        elif action == ControlAction.PAUSE:
+            self._pause_gate.clear()
+            self.status = WorkflowStatus.PAUSED
+            await self.append_log("[System] 神经元突触信号已冻结 (PAUSED)...")
+        elif action == ControlAction.DEBUG:
+            self._pause_gate.set()
+            self._debug_mode = True
+            self._debug_step_gate.set()
+            self.status = WorkflowStatus.DEBUG
+            await self.append_log("[Debug] 单步突触脉冲已放行 (STEP_DEBUG)...")
+        elif action == ControlAction.RESET:
+            self._debug_mode = False
+            self._pause_gate.set()
+            # 回归：RESET 必须放行单步门，否则调试挂起后工作循环永久冻结
+            self._debug_step_gate.set()
+            self.current_run_id = f"run_{uuid.uuid4().hex[:6]}"
+            self._round_seq = 0
+            self.nodes = self._init_nodes()
+            self.edges = self._init_edges()
+            self.node_outputs.clear()
+            self.status = WorkflowStatus.RUNNING
+            await self.save_topology()
+            await self.append_log("[System] 拓扑状态与沙盒已重置...")
+
+        snap = self.get_snapshot()
+        await self.ws_manager.broadcast("workflow_snapshot", snap.model_dump())
+        return snap
+
+    async def add_custom_node_from_sidebar(
+        self, comp_id: str, x: float, y: float, connect_from: Optional[str] = None
+    ) -> WorkflowNode:
+        comp = next((c for c in self.components if c.id == comp_id), None)
+        if not comp:
+            raise ValueError(f"未知算子 ID: {comp_id}")
+
+        new_id = f"node_{comp.id}_{uuid.uuid4().hex[:4]}"
+        new_node = WorkflowNode(
+            id=new_id,
+            type=comp.id,
+            title=comp.name,
+            subtitle=f"({comp.name_en})",
+            position=NodePosition(x=x, y=y),
+            theme_color=comp.theme_color,
+            status="active",
+            progress=100.0,
+            confidence=99.2,
+            latency_ms=8,
+            config_json={
+                "name": f"{comp.name_en}.agent",
+                "anenet5": {"enalen": "Pna", "data": {"name": comp.name, "type": "准确度", "temndary": comp.category_en}},
+            },
+        )
+        self.nodes[new_id] = new_node
+        # 连接策略：显式 connect_from 优先；否则默认挂到意图识别智能体（保持原行为）；均不可用则不建边
+        link_source: Optional[str] = None
+        if connect_from and connect_from in self.nodes:
+            link_source = connect_from
+        elif "node_intent_agent" in self.nodes:
+            link_source = "node_intent_agent"
+        if link_source:
+            self.edges.append(
+                NeuralEdge(
+                    id=f"edge_auto_{uuid.uuid4().hex[:4]}",
+                    source=link_source,
+                    target=new_id,
+                    latency_ms=8,
+                    confidence_pct=99.2,
+                    connection_status="已连接",
+                    active_pulse=True,
+                )
+            )
+        await self.append_log(f"[Topology] 新增神经元算子: {comp.name}，已动态重编译 DAG")
+        await self.ws_manager.broadcast("workflow_snapshot", self.get_snapshot().model_dump())
+        await self.save_topology()
+        return new_node
+
+    async def delete_node(self, node_id: str) -> None:
+        """删除节点及其全部关联连线（级联），供 REST DELETE 路由调用"""
+        if node_id not in self.nodes:
+            raise KeyError(node_id)
+        title = self.nodes[node_id].title
+        del self.nodes[node_id]
+        self.edges = [e for e in self.edges if e.source != node_id and e.target != node_id]
+        self.node_outputs.pop(node_id, None)
+        if self.selected_node_id == node_id:
+            self.selected_node_id = next(iter(self.nodes), "")
+        await self.append_log(f"[Topology] 已删除神经元节点: {title} ({node_id})，关联连线级联移除")
+        await self.ws_manager.broadcast("workflow_snapshot", self.get_snapshot().model_dump())
+        await self.save_topology()

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>前端智能体工作流平台 | AIGENT-WORKFLOW STUDIO v2.8 (60FPS 独立特效预览)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #070a12;
+      color: #f1f5f9;
+      font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      overflow: hidden;
+      user-select: none;
+      margin: 0;
+    }
+    @keyframes eqBar {
+      0% { transform: scaleY(0.3); opacity: 0.55; }
+      100% { transform: scaleY(1.2); opacity: 1; }
+    }
+    @keyframes laserScan {
+      0% { top: -30%; }
+      100% { top: 115%; }
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex flex-col">
+  <!-- 1. 顶部全局导航栏 -->
+  <header class="h-[60px] w-full bg-[#0b101d]/95 border-b border-slate-800/80 px-4 flex items-center justify-between z-30">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-950 via-purple-900 to-cyan-900 flex items-center justify-center shadow-[0_0_18px_rgba(56,189,248,0.6)] border border-cyan-400/50">
+        <span class="text-cyan-300 text-lg animate-pulse">✦</span>
+      </div>
+      <div>
+        <div class="text-[18px] font-bold tracking-wide text-white">前端智能体工作流平台 <span class="text-slate-500 font-light">|</span></div>
+        <div class="text-[10px] tracking-widest text-slate-400 font-mono">AIGENT-WORKFLOW STUDIO v2.8</div>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-3">
+      <button id="btn-run" class="px-3.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-400 text-emerald-300 flex items-center space-x-2 shadow-[0_0_16px_rgba(16,185,129,0.45)]">
+        <span>▷</span>
+        <div class="text-left leading-tight"><div class="text-xs font-semibold">运行</div><div class="text-[9px] opacity-80">Run</div></div>
+      </button>
+      <button id="btn-pause" class="px-3.5 py-1.5 rounded-lg bg-pink-950/40 border border-pink-500 text-pink-300 flex items-center space-x-2 shadow-[0_0_16px_rgba(236,72,153,0.4)]">
+        <span>⏸</span>
+        <div class="text-left leading-tight"><div class="text-xs font-semibold">暂停</div><div class="text-[9px] opacity-80">Pause</div></div>
+      </button>
+      <button id="btn-debug" class="px-3.5 py-1.5 rounded-lg bg-blue-950/50 border border-blue-400 text-blue-300 flex items-center space-x-2 shadow-[0_0_16px_rgba(59,130,246,0.45)]">
+        <span>⚡</span>
+        <div class="text-left leading-tight"><div class="text-xs font-semibold">调试</div><div class="text-[9px] opacity-80">Debug</div></div>
+      </button>
+      <div class="pl-3 text-xs text-slate-300">项目状态: <span id="status-label" class="font-semibold text-emerald-400">运行中</span></div>
+    </div>
+
+    <div class="flex items-center space-x-5">
+      <div class="flex items-center space-x-4 border-l border-r border-slate-800 px-4 py-1">
+        <div>
+          <div class="text-[10px] text-slate-400 mb-0.5">CPU</div>
+          <canvas id="cpu-canvas" width="80" height="22"></canvas>
+        </div>
+        <div>
+          <div class="text-[10px] text-slate-400 mb-0.5">内存实标</div>
+          <canvas id="mem-canvas" width="80" height="22"></canvas>
+        </div>
+      </div>
+      <input type="text" placeholder="🔍 全局搜索" class="w-36 bg-[#131b2e] border border-slate-700/80 rounded-full py-1 px-3 text-xs text-slate-200" />
+    </div>
+  </header>
+
+  <!-- 2. 主体四栏布局 -->
+  <div class="flex-1 flex overflow-hidden">
+    <!-- 极窄图标栏 -->
+    <aside class="w-12 bg-[#090d18] border-r border-slate-800/80 flex flex-col items-center py-3 justify-between z-20 text-slate-400">
+      <div class="space-y-4 flex flex-col items-center">
+        <div class="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-400/60 flex items-center justify-center text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.4)]">❖</div>
+        <div class="w-8 h-8 flex items-center justify-center">☷</div>
+        <div class="w-8 h-8 flex items-center justify-center">⛁</div>
+        <div class="w-8 h-8 flex items-center justify-center">☍</div>
+        <div class="w-8 h-8 flex items-center justify-center">⌘</div>
+        <div class="w-8 h-8 flex items-center justify-center text-cyan-400">❈</div>
+      </div>
+      <div class="space-y-4 flex flex-col items-center">
+        <div>🕒</div>
+        <div>⚙</div>
+      </div>
+    </aside>
+
+    <!-- 左侧算子库 -->
+    <aside class="w-[230px] bg-[#0d1322]/90 border-r border-slate-800/80 p-3 flex flex-col space-y-2.5 overflow-y-auto z-20 text-xs">
+      <input type="text" placeholder="🔍 搜索库" class="w-full bg-[#151e32] border border-slate-700/70 rounded-md py-1 px-2.5 text-xs text-slate-200" />
+      <div class="text-[11px] text-slate-300 font-medium pt-1">▾ 触发器 (Triggers)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">⚡ 页面事件 (Events)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">🕒 定时触发 (Schedule)</div>
+      <div class="text-[11px] text-slate-300 font-medium pt-1">▾ 感知解析 (Perception)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">💬 自然语言理解 (NLU)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">👁 视觉输入 (Vision)</div>
+      <div class="text-[11px] text-slate-300 font-medium pt-1">▾ AI 智能体 (Agents)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">🕸 意图分析 (Intent Agent)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">&lt;/&gt; 代码生成 (CodeGen)</div>
+      <div class="text-[11px] text-slate-300 font-medium pt-1">▾ 数据逻辑 (Logic)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">⇄ 数据转换 (Transform)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">目 状态管理 (State)</div>
+      <div class="text-[11px] text-slate-300 font-medium pt-1">▾ 前端渲染 (Frontend)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">⊞ 组件装配 (Assemble)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">&lt;/&gt; DOM 渲染 (Render)</div>
+      <div class="text-[11px] text-slate-300 font-medium pt-1">▾ 部署 (Deploy)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">△ 沙盒测试 (Test)</div>
+      <div class="px-2.5 py-1.5 rounded bg-[#162038]/80 border border-slate-700/60">🚀 发布 (Publish)</div>
+    </aside>
+
+    <!-- 中央 60FPS 加色混合生物神经元画布 -->
+    <main id="canvas-stage" class="flex-1 relative overflow-hidden bg-[#080c17]" style="background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 24px 24px;">
+      <canvas id="bio-neural-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-10"></canvas>
+
+      <!-- 节点 1：事件捕获 -->
+      <div id="node-1" data-color="#10b981" style="left: 55px; top: 235px; box-shadow: 0 0 20px rgba(16,185,129,0.35), inset 0 0 10px rgba(16,185,129,0.2);" class="draggable-node absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border border-emerald-400 p-3 cursor-grab z-20">
+        <div class="flex justify-between items-start mb-1">
+          <div>
+            <div class="text-xs font-bold text-white flex items-center space-x-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>事件捕获</span></div>
+            <div class="text-[10px] text-slate-400 pl-3.5">(Event Capturer)</div>
+          </div>
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+        </div>
+        <div class="mt-2 pt-2 border-t border-emerald-500/20 flex items-center space-x-2">
+          <div class="text-[9px] text-slate-400 space-y-2 leading-none pr-1"><div>输入</div><div>输出</div></div>
+          <canvas id="ecg-canvas" width="130" height="36"></canvas>
+        </div>
+      </div>
+
+      <!-- 节点 2：意图识别智能体 -->
+      <div id="node-2" data-color="#6366f1" style="left: 305px; top: 235px; box-shadow: 0 0 20px rgba(99,102,241,0.4), inset 0 0 10px rgba(99,102,241,0.2);" class="draggable-node absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border border-indigo-400 p-3 cursor-grab z-20">
+        <div class="flex justify-between items-start mb-1">
+          <div>
+            <div class="text-xs font-bold text-white flex items-center space-x-1.5"><span class="w-2 h-2 rounded-full bg-indigo-400"></span><span>意图识别智能体</span></div>
+            <div class="text-[10px] text-slate-400 pl-3.5">(Intent Agent)</div>
+          </div>
+        </div>
+        <div class="mt-2.5 py-2 flex items-center justify-center space-x-2.5 border-t border-indigo-500/20">
+          <div class="flex items-center space-x-1 h-6">
+            <span class="w-0.5 h-3 bg-cyan-400" style="animation: eqBar 0.45s infinite alternate;"></span>
+            <span class="w-0.5 h-5 bg-indigo-400" style="animation: eqBar 0.6s infinite alternate;"></span>
+            <span class="w-0.5 h-3.5 bg-cyan-300" style="animation: eqBar 0.52s infinite alternate;"></span>
+          </div>
+          <div class="relative w-8 h-8 rounded-full bg-indigo-950 border border-cyan-400 flex items-center justify-center text-xs font-bold text-cyan-300 shadow-[0_0_12px_rgba(56,189,248,0.65)]">AI</div>
+          <div class="flex items-center space-x-1 h-6">
+            <span class="w-0.5 h-3.5 bg-cyan-300" style="animation: eqBar 0.55s infinite alternate;"></span>
+            <span class="w-0.5 h-5 bg-indigo-400" style="animation: eqBar 0.48s infinite alternate;"></span>
+            <span class="w-0.5 h-3 bg-cyan-400" style="animation: eqBar 0.64s infinite alternate;"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 节点 3A：前端UI生成 -->
+      <div id="node-3a" data-color="#38bdf8" style="left: 610px; top: 95px; box-shadow: 0 0 22px rgba(56,189,248,0.45), inset 0 0 12px rgba(56,189,248,0.2);" class="draggable-node absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border border-sky-400 p-3 cursor-grab z-20">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <div class="text-xs font-bold text-white flex items-center space-x-1.5"><span class="w-2 h-2 rounded-full bg-sky-400"></span><span>前端UI生成</span></div>
+            <div class="text-[10px] text-slate-400 pl-3.5">(UI Generation Agent)</div>
+          </div>
+          <span class="w-2 h-2 rounded-full bg-sky-300 animate-ping"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 mb-2">
+          <div class="h-11 rounded bg-slate-100 p-1.5 flex flex-col justify-between relative overflow-hidden">
+            <div class="w-full h-2 bg-slate-800 rounded-sm"></div>
+            <div class="grid grid-cols-2 gap-1"><div class="h-4 bg-slate-300 rounded-sm"></div><div class="h-4 bg-slate-800 rounded-sm"></div></div>
+            <div class="absolute inset-x-0 h-3 bg-gradient-to-b from-transparent via-cyan-400/45 to-transparent" style="animation: laserScan 2s linear infinite;"></div>
+          </div>
+          <div class="h-11 rounded bg-slate-800/95 border border-slate-700 p-1.5 flex flex-col items-center justify-center relative overflow-hidden">
+            <div class="w-4 h-3 bg-slate-300 rounded-sm mb-1"></div>
+            <div class="w-10 h-1.5 bg-slate-500 rounded-sm"></div>
+            <div class="absolute inset-x-0 h-3 bg-gradient-to-b from-transparent via-purple-400/40 to-transparent" style="animation: laserScan 2s linear infinite 1s;"></div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <div class="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-blue-500 to-cyan-300 w-[98.6%]"></div></div>
+          <span class="text-[10px] font-mono text-cyan-300">98.6%</span>
+        </div>
+      </div>
+
+      <!-- 节点 3B：多Agent协作器 -->
+      <div id="node-3b" data-color="#a855f7" style="left: 610px; top: 305px; box-shadow: 0 0 20px rgba(168,85,247,0.4), inset 0 0 10px rgba(168,85,247,0.2);" class="draggable-node absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border border-purple-400 p-3 cursor-grab z-20">
+        <div class="text-xs font-bold text-white flex items-center space-x-1.5"><span class="w-2 h-2 rounded-full bg-purple-400"></span><span>多Agent协作器</span></div>
+        <div class="text-[10px] text-slate-400 pl-3.5 mt-0.5">(Co-Agent)</div>
+      </div>
+
+      <!-- 节点 3C：页面渲染引擎 -->
+      <div id="node-3c" data-color="#3b82f6" style="left: 610px; top: 435px; box-shadow: 0 0 20px rgba(59,130,246,0.4), inset 0 0 10px rgba(59,130,246,0.2);" class="draggable-node absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border border-blue-400 p-3 cursor-grab z-20">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <div class="text-xs font-bold text-white flex items-center space-x-1.5"><span class="w-2 h-2 rounded-full bg-blue-400"></span><span>页面渲染引擎</span></div>
+            <div class="text-[10px] text-slate-400 pl-3.5">(DOM Renderer)</div>
+          </div>
+          <span class="px-1.5 py-0.5 text-[9px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">Success</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <div class="h-11 rounded bg-slate-950 border border-slate-800 p-1 font-mono text-[7px] text-emerald-400 leading-tight">
+            <div>&lt;div class="ui"&gt;</div><div class="pl-1 text-cyan-400">&lt;Agent /&gt;</div><div>&lt;/div&gt;</div>
+          </div>
+          <div class="h-11 rounded bg-white p-1 flex flex-col justify-between">
+            <div class="w-1/2 h-1.5 bg-blue-600 rounded-sm"></div>
+            <div class="w-full h-4 bg-slate-200 rounded-sm"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 右侧监控栏 -->
+    <aside class="w-[310px] bg-[#0d1322]/95 border-l border-slate-800/80 flex flex-col justify-between p-3 space-y-3 z-20">
+      <div class="bg-[#121b2e]/90 border border-slate-800 rounded-xl p-3">
+        <div class="flex justify-between border-b border-slate-800 pb-2 mb-2 text-xs font-semibold"><span>属性配置 (Inspector)</span><span class="text-slate-500">×</span></div>
+        <div class="text-[11px] text-slate-400">属性配置</div>
+        <div class="flex justify-center"><canvas id="radar-canvas" width="215" height="145"></canvas></div>
+      </div>
+
+      <div class="bg-[#121b2e]/90 border border-slate-800 rounded-xl p-3">
+        <div class="text-xs font-semibold mb-1.5">JSON 配置区</div>
+        <pre class="bg-[#090e1a] border border-slate-800 rounded-lg p-2.5 font-mono text-[11px] text-amber-300 leading-relaxed overflow-x-auto">{
+  "name": "Agentinightik.eod",
+  "anenet5": {
+    "enalen": "Pna",
+    "data": {
+      "name": "智能体I",
+      "type": "准确度",
+      "temndary": "UI Generation"
+    }
+  }
+}</pre>
+      </div>
+
+      <div class="bg-[#121b2e]/90 border border-slate-800 rounded-xl p-3 flex-1 flex flex-col">
+        <div class="text-xs font-semibold mb-2">动态日志与 AI 终端</div>
+        <div id="terminal-box" class="flex-1 bg-[#080c16] border border-slate-800/90 rounded-lg p-2.5 font-mono text-[11px] space-y-1 text-emerald-400 overflow-y-auto">
+          <div>Agent initialized: 99.2%...</div>
+          <div>Agent initialized: 99.2%...</div>
+          <div>Agent initialized: 99.2%...</div>
+          <div>Agent initialized: 99.2%...</div>
+          <div>Agent initialized: 99.2%...</div>
+          <div>Agent initialized: 99.2%...</div>
+          <div>Agent initialized: 99.2%...</div>
+          <div class="text-cyan-300 font-semibold">Success...</div>
+          <div class="text-amber-400">[System] Deploying to Sandbox...</div>
+          <div class="text-amber-400">[System] Deploying to Sandbox...</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 60FPS 加色混合生物神经元与全套微组件物理渲染脚本 -->
+  <script>
+    let isRunning = true;
+    let time = 0;
+
+    document.getElementById('btn-run').onclick = () => {
+      isRunning = true;
+      const el = document.getElementById('status-label');
+      el.textContent = '运行中';
+      el.className = 'font-semibold text-emerald-400';
+    };
+    document.getElementById('btn-pause').onclick = () => {
+      isRunning = false;
+      const el = document.getElementById('status-label');
+      el.textContent = '已暂停';
+      el.className = 'font-semibold text-pink-400';
+    };
+
+    // 节点鼠标自由拖拽
+    const nodeEls = {
+      n1: document.getElementById('node-1'),
+      n2: document.getElementById('node-2'),
+      n3a: document.getElementById('node-3a'),
+      n3b: document.getElementById('node-3b'),
+      n3c: document.getElementById('node-3c'),
+    };
+    let activeDrag = null, offsetX = 0, offsetY = 0;
+    Object.values(nodeEls).forEach((el) => {
+      el.addEventListener('mousedown', (e) => {
+        activeDrag = el;
+        offsetX = e.clientX - el.offsetLeft;
+        offsetY = e.clientY - el.offsetTop;
+      });
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!activeDrag) return;
+      activeDrag.style.left = (e.clientX - offsetX) + 'px';
+      activeDrag.style.top = (e.clientY - offsetY) + 'px';
+    });
+    window.addEventListener('mouseup', () => { activeDrag = null; });
+
+    // 主神经元画布初始化
+    const bioCanvas = document.getElementById('bio-neural-canvas');
+    const bCtx = bioCanvas.getContext('2d');
+    let dendrites = [], dendriteComets = [], synapseComets = [];
+
+    function cubicPt(c, t) {
+      const mt = 1 - t, mt2 = mt * mt, mt3 = mt2 * mt, t2 = t * t, t3 = t2 * t;
+      return {
+        x: mt3 * c.x0 + 3 * mt2 * t * c.cx1 + 3 * mt * t2 * c.cx2 + t3 * c.x1,
+        y: mt3 * c.y0 + 3 * mt2 * t * c.cy1 + 3 * mt * t2 * c.cy2 + t3 * c.y1,
+      };
+    }
+
+    function initDendrites(w, h) {
+      dendrites = [];
+      dendriteComets = [];
+      function branch(x, y, ang, len, thick, depth, color) {
+        if (depth <= 0 || len < 12) return;
+        const b1 = ang + Math.sin(depth * 2.1 + ang) * 0.28;
+        const b2 = ang - Math.cos(depth * 1.7 - ang) * 0.24;
+        const ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len;
+        const c = {
+          x0: x, y0: y,
+          cx1: x + Math.cos(b1) * len * 0.38, cy1: y + Math.sin(b1) * len * 0.38,
+          cx2: x + Math.cos(b2) * len * 0.72, cy2: y + Math.sin(b2) * len * 0.72,
+          x1: ex, y1: ey, w: thick, depth, color
+        };
+        const idx = dendrites.length;
+        dendrites.push(c);
+        if (depth >= 2) {
+          dendriteComets.push({ idx, t: Math.random(), speed: 0.004 + Math.random() * 0.006, color: color === '#38bdf8' ? '#00f5d4' : '#f472b6', size: Math.max(1.2, thick * 0.55) });
+        }
+        const sub = depth === 5 ? 3 : 2;
+        for (let i = 0; i < sub; i++) {
+          const sp = (i - (sub - 1) / 2) * 0.46;
+          branch(ex, ey, ang + sp, len * 0.71, thick * 0.58, depth - 1, color);
+        }
+      }
+      [-2.6, -2.1, -1.5, -0.85, -0.25, 0.35, 0.95, 1.65, 2.35, 2.95].forEach((a, i) => {
+        branch(w * 0.21, h * 0.77, a, i % 2 === 0 ? 95 : 70, 4.8, 5, '#38bdf8');
+      });
+      [-2.8, -2.2, -1.55, -0.9, -0.2, 0.4, 1.05, 1.7, 2.3, 2.85].forEach((a, i) => {
+        branch(w * 0.76, h * 0.19, a, i % 2 === 0 ? 92 : 68, 4.6, 5, '#c084fc');
+      });
+      synapseComets = Array.from({ length: 28 }, (_, i) => ({
+        edgeIdx: i % 4, strandIdx: i % 5, t: (i * 0.17) % 1, speed: 0.007 + (i % 4) * 0.002,
+        color: i % 3 === 0 ? '#00f5d4' : i % 3 === 1 ? '#38bdf8' : '#e879f9'
+      }));
+    }
+
+    function resizeStage() {
+      const st = document.getElementById('canvas-stage');
+      bioCanvas.width = st.clientWidth;
+      bioCanvas.height = st.clientHeight;
+      initDendrites(st.clientWidth, st.clientHeight);
+    }
+    window.addEventListener('resize', resizeStage);
+    resizeStage();
+
+    function drawSoma(cx, cy, c1, c2, seed) {
+      bCtx.save();
+      bCtx.globalCompositeOperation = 'lighter';
+      const rOut = 155 + Math.sin(time * 1.8 + seed) * 14;
+      const g = bCtx.createRadialGradient(cx, cy, 4, cx, cy, rOut);
+      g.addColorStop(0, c1); g.addColorStop(0.25, c2); g.addColorStop(1, 'rgba(7,10,18,0)');
+      bCtx.fillStyle = g;
+      bCtx.beginPath(); bCtx.arc(cx, cy, rOut, 0, Math.PI * 2); bCtx.fill();
+
+      bCtx.beginPath();
+      for (let i = 0; i <= 60; i++) {
+        const th = (i / 60) * Math.PI * 2;
+        const r = 34 + Math.sin(th * 5 + time * 1.5 + seed) * 6 + Math.cos(th * 8 - time * 2) * 4;
+        const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r;
+        if (i === 0) bCtx.moveTo(px, py); else bCtx.lineTo(px, py);
+      }
+      bCtx.closePath();
+      const sg = bCtx.createRadialGradient(cx, cy, 4, cx, cy, 42);
+      sg.addColorStop(0, 'rgba(255,255,255,0.7)'); sg.addColorStop(0.45, c1); sg.addColorStop(1, 'rgba(15,23,42,0.05)');
+      bCtx.fillStyle = sg; bCtx.fill();
+
+      bCtx.globalCompositeOperation = 'source-over';
+      bCtx.beginPath(); bCtx.arc(cx, cy, 15, 0, Math.PI * 2);
+      bCtx.fillStyle = '#14112e'; bCtx.fill();
+      bCtx.lineWidth = 2.5; bCtx.strokeStyle = c1; bCtx.stroke();
+
+      bCtx.globalCompositeOperation = 'lighter';
+      bCtx.beginPath(); bCtx.arc(cx, cy, 7 + Math.sin(time * 3 + seed) * 1.5, 0, Math.PI * 2);
+      bCtx.fillStyle = '#ffffff'; bCtx.fill();
+      bCtx.restore();
+    }
+
+    function drawComet(curve, tHead, tail, color, sz) {
+      for (let s = 0; s < 14; s++) {
+        const ratio = s / 14;
+        const ts = tHead - ratio * tail;
+        if (ts < 0 || ts > 1) continue;
+        const pt = cubicPt(curve, ts);
+        bCtx.beginPath();
+        bCtx.arc(pt.x, pt.y, sz * (1 - ratio * 0.75), 0, Math.PI * 2);
+        bCtx.fillStyle = s === 0 ? '#ffffff' : color;
+        bCtx.globalAlpha = (1 - ratio) * 0.85;
+        bCtx.fill();
+      }
+      bCtx.globalAlpha = 1;
+    }
+
+    // 节点内 ECG 与雷达数据
+    const ecgCanvas = document.getElementById('ecg-canvas');
+    const eCtx = ecgCanvas.getContext('2d');
+    const ecgPts = Array(64).fill(18);
+    const radarCanvas = document.getElementById('radar-canvas');
+    const rCtx = radarCanvas.getContext('2d');
+    const cpuCanvas = document.getElementById('cpu-canvas');
+    const cCtx = cpuCanvas.getContext('2d');
+    const cpuPts = Array(20).fill(11);
+    const memCanvas = document.getElementById('mem-canvas');
+    const mCtx = memCanvas.getContext('2d');
+    const memPts = Array(20).fill(10);
+
+    function animate() {
+      if (isRunning) time += 0.026;
+      const w = bioCanvas.width, h = bioCanvas.height;
+      bCtx.clearRect(0, 0, w, h);
+
+      // 1. 渲染背景分形树突与彗星
+      bCtx.save();
+      bCtx.globalCompositeOperation = 'lighter';
+      dendrites.forEach((c, idx) => {
+        const sx = Math.sin(time * 1.4 + idx * 0.5) * (6 - c.depth);
+        const sy = Math.cos(time * 1.2 + idx * 0.3) * (6 - c.depth);
+        const dc = { ...c, cx1: c.cx1 + sx, cy1: c.cy1 + sy, x1: c.x1 + sx * 0.6, y1: c.y1 + sy * 0.6 };
+        bCtx.beginPath(); bCtx.moveTo(dc.x0, dc.y0); bCtx.bezierCurveTo(dc.cx1, dc.cy1, dc.cx2, dc.cy2, dc.x1, dc.y1);
+        bCtx.strokeStyle = dc.color; bCtx.lineWidth = dc.w * 2.1; bCtx.globalAlpha = 0.14; bCtx.stroke();
+        bCtx.beginPath(); bCtx.moveTo(dc.x0, dc.y0); bCtx.bezierCurveTo(dc.cx1, dc.cy1, dc.cx2, dc.cy2, dc.x1, dc.y1);
+        bCtx.strokeStyle = dc.depth >= 4 ? '#e0f2fe' : dc.color; bCtx.lineWidth = dc.w * 0.62; bCtx.globalAlpha = Math.min(0.65, dc.depth * 0.13); bCtx.stroke();
+      });
+      dendriteComets.forEach((p) => {
+        if (isRunning) { p.t += p.speed; if (p.t > 1.2) p.t = 0; }
+        drawComet(dendrites[p.idx], p.t, 0.22, p.color, p.size);
+      });
+      bCtx.restore();
+
+      drawSoma(w * 0.21, h * 0.77, 'rgba(56,189,248,0.75)', 'rgba(99,102,241,0.35)', 0.5);
+      drawSoma(w * 0.76, h * 0.19, 'rgba(232,121,249,0.75)', 'rgba(168,85,247,0.35)', 3.1);
+
+      // 2. 渲染节点间 5 股交织神经突触束
+      const pairs = [
+        [nodeEls.n1, nodeEls.n2, false],
+        [nodeEls.n2, nodeEls.n3a, false],
+        [nodeEls.n2, nodeEls.n3b, true],
+        [nodeEls.n2, nodeEls.n3c, false],
+      ];
+      bCtx.save();
+      bCtx.globalCompositeOperation = 'lighter';
+      pairs.forEach(([srcEl, dstEl, badge], edgeIdx) => {
+        const sx = srcEl.offsetLeft + 195, sy = srcEl.offsetTop + 60;
+        const tx = dstEl.offsetLeft, ty = dstEl.offsetTop + 52;
+        const dx = tx - sx;
+        for (let s = 0; s < 5; s++) {
+          const off = (s - 2) * 9;
+          const wv = Math.sin(time * 2.4 + s * 1.3 + edgeIdx) * 6;
+          const sc = {
+            x0: sx, y0: sy,
+            cx1: sx + dx * 0.42, cy1: sy + off * 1.4 + wv,
+            cx2: sx + dx * 0.58, cy2: ty - off * 1.4 - wv,
+            x1: tx, y1: ty
+          };
+          bCtx.beginPath(); bCtx.moveTo(sc.x0, sc.y0); bCtx.bezierCurveTo(sc.cx1, sc.cy1, sc.cx2, sc.cy2, sc.x1, sc.y1);
+          bCtx.strokeStyle = s % 2 === 0 ? '#38bdf8' : '#a855f7';
+          bCtx.lineWidth = s === 2 ? 6.5 : 2.6; bCtx.globalAlpha = s === 2 ? 0.25 : 0.12; bCtx.stroke();
+
+          bCtx.beginPath(); bCtx.moveTo(sc.x0, sc.y0); bCtx.bezierCurveTo(sc.cx1, sc.cy1, sc.cx2, sc.cy2, sc.x1, sc.y1);
+          bCtx.strokeStyle = s === 2 ? '#ffffff' : '#38bdf8';
+          bCtx.lineWidth = s === 2 ? 2.4 : 1.0; bCtx.globalAlpha = s === 2 ? 0.92 : 0.55; bCtx.stroke();
+
+          synapseComets.filter((c) => c.edgeIdx === edgeIdx && c.strandIdx === s).forEach((c) => {
+            if (isRunning) { c.t += c.speed; if (c.t > 1.25) c.t = 0; }
+            drawComet(sc, c.t, 0.24, c.color, s === 2 ? 3.4 : 2.1);
+          });
+        }
+        // 端口星芒与指标文字
+        [ [sx, sy], [tx, ty] ].forEach(([px, py]) => {
+          const fg = bCtx.createRadialGradient(px, py, 0.5, px, py, 15);
+          fg.addColorStop(0, '#ffffff'); fg.addColorStop(0.35, '#00f5d4'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+          bCtx.fillStyle = fg; bCtx.beginPath(); bCtx.arc(px, py, 15, 0, Math.PI * 2); bCtx.fill();
+        });
+        const mx = (sx + tx) / 2, my = (sy + ty) / 2;
+        bCtx.font = '600 11px monospace'; bCtx.fillStyle = '#e2e8f0';
+        bCtx.fillText('8ms', mx - 25, my - 10);
+        if (edgeIdx > 0) bCtx.fillText('99.2%', mx - 38, my + 18);
+      });
+      bCtx.restore();
+
+      // 3. 更新事件捕获 ECG 心电图
+      if (isRunning) {
+        const cyc = (time * 8) % (Math.PI * 2);
+        let v = Math.sin(time * 20) * 2 + (Math.random() - 0.5) * 2;
+        if (cyc > 2.8 && cyc < 3.1) v = -13;
+        else if (cyc >= 3.1 && cyc < 3.35) v = 9;
+        ecgPts.push(18 + v); ecgPts.shift();
+      }
+      eCtx.clearRect(0, 0, 130, 36);
+      eCtx.beginPath();
+      ecgPts.forEach((py, i) => {
+        const px = (i / 63) * 126;
+        if (i === 0) eCtx.moveTo(px, py); else eCtx.lineTo(px, py);
+      });
+      eCtx.strokeStyle = '#10b981'; eCtx.lineWidth = 1.6; eCtx.shadowColor = '#10b981'; eCtx.shadowBlur = 8; eCtx.stroke();
+
+      // 4. 更新五维雷达图
+      rCtx.clearRect(0, 0, 215, 145);
+      const rcx = 107, rcy = 76, maxR = 52;
+      [0.4, 0.7, 1.0].forEach((lv) => {
+        rCtx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+          const x = rcx + Math.cos(a) * maxR * lv, y = rcy + Math.sin(a) * maxR * lv;
+          if (i === 0) rCtx.moveTo(x, y); else rCtx.lineTo(x, y);
+        }
+        rCtx.closePath(); rCtx.strokeStyle = 'rgba(148,163,184,0.22)'; rCtx.stroke();
+      });
+      rCtx.beginPath();
+      [92, 96, 99, 88, 95].forEach((m, i) => {
+        const r = ((m + Math.sin(time * 2 + i) * 2.5) / 100) * maxR;
+        const a = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+        const x = rcx + Math.cos(a) * r, y = rcy + Math.sin(a) * r;
+        if (i === 0) rCtx.moveTo(x, y); else rCtx.lineTo(x, y);
+      });
+      rCtx.closePath();
+      rCtx.fillStyle = 'rgba(59,130,246,0.42)'; rCtx.fill();
+      rCtx.strokeStyle = '#38bdf8'; rCtx.lineWidth = 1.8; rCtx.stroke();
+      rCtx.fillStyle = '#94a3b8'; rCtx.font = '10px sans-serif';
+      rCtx.fillText('雷达', rcx - 10, rcy - 58); rCtx.fillText('响应度', rcx + 56, rcy - 10);
+      rCtx.fillText('准确度', rcx + 30, rcy + 64); rCtx.fillText('响应度', rcx - 62, rcy + 64); rCtx.fillText('雷达', rcx - 78, rcy - 10);
+
+      // 5. 更新顶部 CPU 与内存实标波形
+      if (isRunning && Math.random() > 0.7) {
+        cpuPts.push(4 + Math.random() * 14); cpuPts.shift();
+        memPts.push(7 + Math.random() * 6); memPts.shift();
+      }
+      cCtx.clearRect(0, 0, 80, 22);
+      cCtx.beginPath(); cpuPts.forEach((y, i) => { const x = (i / 19) * 80; if (i === 0) cCtx.moveTo(x, y); else cCtx.lineTo(x, y); });
+      cCtx.strokeStyle = '#38bdf8'; cCtx.lineWidth = 1.5; cCtx.stroke();
+
+      mCtx.clearRect(0, 0, 80, 22);
+      mCtx.beginPath(); memPts.forEach((y, i) => { const x = (i / 19) * 80; if (i === 0) mCtx.moveTo(x, y); else mCtx.lineTo(x, y); });
+      mCtx.strokeStyle = '#c084fc'; mCtx.lineWidth = 1.5; mCtx.stroke();
+
+      requestAnimationFrame(animate);
+    }
+    animate();
+  </script>
+</body>
+</html>

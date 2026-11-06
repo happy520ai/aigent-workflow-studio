@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神经元工作流平台 · 代码结构图</title>
+<style id="lumi-runtime">
+/* Luminous minimal runtime: tokens (light+dark) + the component classes this
+   template actually uses. Do not hardcode hex colors in widget CSS. */
+:root {
+  --ff-sans: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
+  --ff-mono: 'Google Sans Code', 'Consolas', monospace;
+  --body-bg: transparent;
+  --surface: #fdfcfc;
+  --surface-dim: #f2f0f0;
+  --surface-bright: #ffffff;
+  --surface-container: #f2f0f0;
+  --surface-container-high: #e6e6e6;
+  --on-surface: #000000;
+  --on-surface-variant: rgba(0, 0, 0, 0.55);
+  --primary: #3186ff;
+  --accent-container: #dcf1ff;
+  --stroke-default: #e3e3e3;
+  --r-s: 8px; --r-m: 12px; --r-full: 999px;
+}
+:root[data-theme="dark"],
+body.dark-mode { 
+  --body-bg: #0f0f0f;
+  --surface: #0f0f0f;
+  --surface-dim: #141414;
+  --surface-bright: #1c1c1c;
+  --surface-container: #141414;
+  --surface-container-high: #1c1c1c;
+  --on-surface: #e0e0e0;
+  --on-surface-variant: rgba(255, 255, 255, 0.55);
+  --primary: #9dd2ff;
+  --accent-container: #192967;
+  --stroke-default: #2d2f38;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --body-bg: #0f0f0f;
+  --surface: #0f0f0f;
+  --surface-dim: #141414;
+  --surface-bright: #1c1c1c;
+  --surface-container: #141414;
+  --surface-container-high: #1c1c1c;
+  --on-surface: #e0e0e0;
+  --on-surface-variant: rgba(255, 255, 255, 0.55);
+  --primary: #9dd2ff;
+  --accent-container: #192967;
+  --stroke-default: #2d2f38;
+} }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--body-bg) !important;
+  color: var(--on-surface) !important;
+  overflow-y: hidden;
+  font-family: var(--ff-sans);
+  -webkit-font-smoothing: antialiased;
+}
+* , *::before, *::after { box-sizing: border-box; }
+.widget-container {
+  width: 100%; min-height: 280px; padding: 16px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.header-title-row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+.top-controls { display: flex; align-items: center; gap: 8px; }
+.stage-badge-pill {
+  font-family: var(--ff-mono); font-size: 12px; padding: 4px 10px;
+  border-radius: var(--r-full); background: var(--accent-container);
+  color: var(--primary); font-weight: 600;
+}
+.diagram-viewport {
+  width: 100%; background: var(--surface-dim);
+  border-radius: var(--r-m); border: 1px solid var(--stroke-default);
+  padding: 12px; overflow: hidden;
+}
+.diagram-svg { width: 100%; height: auto; display: block; margin: 0 auto; user-select: none; }
+.diagram-node { cursor: pointer; }
+.diagram-node:hover rect { stroke: var(--primary); fill: var(--surface-bright); }
+.diagram-node.is-active rect { fill: var(--accent-container); stroke: var(--primary); stroke-width: 2px; }
+svg text { stroke: none; paint-order: fill; }
+.flow-line-active {
+  stroke: var(--primary); stroke-width: 1.5px;
+  stroke-dasharray: 4 4; animation: dashFlow 1.2s linear infinite;
+}
+@keyframes dashFlow { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
+.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 580px) { .details-grid { grid-template-columns: 1fr; } }
+.detail-card {
+  background: var(--surface-bright); border: 1px solid var(--stroke-default);
+  border-radius: var(--r-m); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.card-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--stroke-default); padding-bottom: 8px;
+}
+.card-title { font-size: 15px; font-weight: 600; color: var(--on-surface); margin: 0; }
+.pill-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.plugin-pill {
+  font-family: var(--ff-mono); font-size: 12px; padding: 3px 8px;
+  border-radius: 6px; background: var(--surface-dim);
+  border: 1px solid var(--stroke-default); color: var(--on-surface);
+}
+.state-io-box {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--surface-dim); padding: 10px 12px;
+  border-radius: var(--r-s); font-size: 13px;
+}
+.io-row { display: flex; align-items: flex-start; gap: 8px; }
+.io-label {
+  font-family: var(--ff-mono); font-size: 12px; padding: 1px 6px;
+  border-radius: 4px; font-weight: 600; flex-shrink: 0;
+}
+.io-label.input { background: var(--surface-container); color: var(--on-surface-variant); }
+.io-label.output { background: var(--accent-container); color: var(--primary); }
+.io-text { color: var(--on-surface); line-height: 1.35; }
+.code-viewer {
+  font-family: var(--ff-mono); font-size: 12px; line-height: 1.45;
+  background: var(--surface-dim); border: 1px solid var(--stroke-default);
+  border-radius: var(--r-s); padding: 12px; color: var(--on-surface);
+  white-space: pre-wrap; word-break: break-all; min-height: 140px;
+}
+.action-detail-text { font-size: 13px; line-height: 1.5; color: var(--on-surface-variant); margin: 0; }
+.segmented-control {
+  display: inline-flex; background: var(--surface-dim); padding: 2px;
+  border-radius: var(--r-full); border: 1px solid var(--stroke-default);
+}
+.segmented-btn {
+  border: none; background: transparent; font-size: 12px;
+  font-family: var(--ff-sans); padding: 4px 12px;
+  border-radius: var(--r-full); cursor: pointer;
+  color: var(--on-surface-variant);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.segmented-btn.is-active {
+  background: var(--surface-bright); color: var(--on-surface);
+  font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.nav-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 12px; border-radius: var(--r-full);
+  border: 1px solid var(--stroke-default); background: var(--surface-bright);
+  color: var(--on-surface); font-size: 13px; cursor: pointer; user-select: none;
+  transition: background-color 0.15s;
+}
+.nav-btn:hover:not(:disabled) { background: var(--surface-dim); }
+.nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.lumi-caption { font-family: var(--ff-mono); font-style: italic; font-size: 13px; color: var(--on-surface-variant); }
+</style>
+<script id="lumi-os-theme-init">
+(function() {
+  function syncBody() {
+    var dt = document.documentElement.getAttribute('data-theme');
+    if (document.body && (dt === 'dark' || dt === 'light')) {
+      document.body.classList.toggle('dark-mode', dt === 'dark');
+    }
+  }
+  function syncTheme(theme) {
+    if (theme !== 'dark' && theme !== 'light') return;
+    document.documentElement.setAttribute('data-theme', theme);
+    syncBody();
+  }
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(syncBody).observe(document.documentElement, {
+      attributes: true, attributeFilter: ['data-theme']
+    });
+  }
+  document.addEventListener('DOMContentLoaded', syncBody);
+  try {
+    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq) {
+      if (!document.documentElement.getAttribute('data-theme')) {
+        syncTheme(mq.matches ? 'dark' : 'light');
+      }
+      mq.addEventListener('change', function(e) { syncTheme(e.matches ? 'dark' : 'light'); });
+    }
+  } catch (e) {}
+  window.addEventListener('message', function(e) {
+    if (e.data && (e.data.type === 'set-theme' || e.data.type === 'APPLY_THEME') && e.data.theme) {
+      syncTheme(e.data.theme);
+    }
+  });
+})();
+</script>
+</head>
+<body>
+  <div class="widget-container">
+
+    <div class="header-block">
+      <div class="header-title-row">
+        <h2 style="margin: 0; font-size: 24px; font-weight: 500;">神经元工作流平台 · 代码结构图</h2>
+        <div class="top-controls">
+          <span class="stage-badge-pill" id="stageCounter"></span>
+          <button class="nav-btn" id="prevBtn" onclick="changeStage(-1)">&larr; 上一步</button>
+          <button class="nav-btn" id="nextBtn" onclick="changeStage(1)">下一步 &rarr;</button>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: var(--on-surface-variant);">从左到右是数据流动方向：浏览器 → React 工作台 → FastAPI 后端 → 引擎与模型。点击任一节点查看该层的文件清单和大白话说明。</p>
+    </div>
+
+    <div class="diagram-viewport" id="diagramZone">
+      <svg class="diagram-svg" viewBox="0 0 880 155" id="archSvg">
+        <defs>
+          <marker id="lumi-caret" viewBox="0 0 10 10" refX="7.5" refY="5"
+                  markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto">
+            <path d="M 3 1.2 L 7.5 5 L 3 8.8" fill="none" stroke="var(--on-surface)"
+                  stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="lumi-caret-active" viewBox="0 0 10 10" refX="7.5" refY="5"
+                  markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto">
+            <path d="M 3 1.2 L 7.5 5 L 3 8.8" fill="none" stroke="var(--primary)"
+                  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+        <g id="connectorGroup"></g>
+        <g id="nodeGroup"></g>
+      </svg>
+    </div>
+
+    <div class="details-grid" id="detailsZone">
+      <div class="detail-card">
+        <div class="card-header-row">
+          <h3 class="card-title" id="itemTitle"></h3>
+          <span class="lumi-caption" id="itemIdTag"></span>
+        </div>
+        <div class="state-io-box">
+          <div class="io-row">
+            <span class="io-label input">输入</span>
+            <span class="io-text" id="inputStateText"></span>
+          </div>
+          <div class="io-row">
+            <span class="io-label output">输出</span>
+            <span class="io-text" id="outputStateText"></span>
+          </div>
+        </div>
+        <div>
+          <div class="lumi-caption" style="margin-bottom: 6px;">该层文件</div>
+          <div class="pill-list" id="pluginList"></div>
+        </div>
+        <div>
+          <div class="lumi-caption" style="margin-bottom: 4px;">职责</div>
+          <p class="action-detail-text" id="actionDetailText"></p>
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <div class="card-header-row">
+          <h3 class="card-title">视图切换</h3>
+          <div class="segmented-control" id="modeControl"></div>
+        </div>
+        <div class="code-viewer" id="codeViewer"></div>
+        <div class="lumi-caption" id="modeDescription"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ===== 数据先行：所有内容集中在这里，新增条目只改此数组 =====
+    // 行数数据来源：2026-11-05 wc -l 实测（排除 node_modules / dist / __pycache__）
+    const ITEMS = [
+      {
+        shortName: "前端入口",
+        title: "前端入口 · Vite + React 启动层",
+        tags: ["main.tsx (11行)", "App.tsx (5行)", "index.html", "vite.config.ts"],
+        inputState: "浏览器访问 http://localhost:5173（npm run dev）",
+        outputState: "挂载并渲染 Workbench 工作台",
+        actionDetail: "只有一件事：把 Workbench 挂到页面上。App.tsx 一行返回 <Workbench/>，vite.config.ts 配 5173 端口与构建。",
+        fileList: "frontend/index.html\nfrontend/src/main.tsx      (11行)\nfrontend/src/App.tsx       (5行)\nfrontend/vite.config.ts\nfrontend/tsconfig.json",
+        plainTalk: "打开网页最先跑的就是这几个文件。main.tsx 找到 index.html 里的挂载点，把 App（也就是整个工作台）塞进去，就没了——真正的活都交给 Workbench。"
+      },
+      {
+        shortName: "工作台主件",
+        title: "工作台主组件 · Workbench.tsx（前端最大文件）",
+        tags: ["Workbench.tsx (964行)", "index.css (51行)"],
+        inputState: "用户交互（拖拽/点选/切面板）+ WebSocket 遥测流（本地仿真双驱动）",
+        outputState: "顶栏荧光示波器（CPU/内存双通道）、HUD 面板、节点编排画布",
+        actionDetail: "全量合成版（《动画效果.txt》第五节零补丁版）：挂载 BioluminescentCanvas 神经元画布 + HeaderMiniOscilloscope 示波器 + 各面板，是前端的状态中枢。",
+        fileList: "frontend/src/Workbench.tsx (964行)\nfrontend/src/index.css     (51行)",
+        plainTalk: "整个工作台的长相和行为都由它说了算：上面一排仪表盘，中间是神经元画布，下面是面板。它自己不画动画（动画交给动效组件），只负责把数据喂给它们。"
+      },
+      {
+        shortName: "动效组件",
+        title: "动效组件层 · 画布 / 微件 / 沙盒",
+        tags: ["BioluminescentCanvas.tsx (533行)", "NodeMicroWidgets.tsx (297行)", "SandboxAndTimeTravel.tsx (362行)"],
+        inputState: "Workbench 传入的状态与节点数据",
+        outputState: "加色混合神经元画布、QRS 示波器/AI核/激光扫描/雷达微件、沙盒与时间旅行弹窗",
+        actionDetail: "BioluminescentCanvas 是 533 行的画布引擎（加色混合 lighter + 分形树突 + 极坐标谐波 + 14 段彗星拖尾，DPR 自适应）；NodeMicroWidgets 提供 4 类节点微动效；SandboxAndTimeTravel 是沙盒/时间旅行弹窗。",
+        fileList: "frontend/src/components/BioluminescentCanvas.tsx (533行)\nfrontend/src/components/NodeMicroWidgets.tsx      (297行)\nfrontend/src/components/SandboxAndTimeTravel.tsx  (362行)",
+        plainTalk: "三块'特效积木'：画布负责满屏发光的神经元和树突；微件负责节点上转圈的小仪表；沙盒弹窗负责'时间旅行'——回看之前的操作记录。"
+      },
+      {
+        shortName: "状态Hooks",
+        title: "状态 Hooks · useSynapseLinker",
+        tags: ["useSynapseLinker.ts (85行)"],
+        inputState: "节点选中 / 拖拽事件",
+        outputState: "突触（节点间连线）的链接状态与回调",
+        actionDetail: "React 自定义 Hook：管理'选中一个节点再点另一个就拉一条突触线'的交互状态，供 Workbench 消费。",
+        fileList: "frontend/src/hooks/useSynapseLinker.ts (85行)",
+        plainTalk: "专管'连线'这件事的小逻辑包：你先点一个节点、再点另一个，它记住了顺序，工作台就照着画线。"
+      },
+      {
+        shortName: "API入口",
+        title: "后端 API 入口 · FastAPI（端口 8000）",
+        tags: ["perfect_main.py (249行)", "main.py (122行)", "scripts/smoke_ws.py"],
+        inputState: "前端发来的 HTTP REST 请求 + WebSocket 连接",
+        outputState: "工作流快照、控制指令回执、AST 校验报告、zip 工件发布流",
+        actionDetail: "perfect_main.py 是 v2.8 主入口（含 AST 校验 + 工件发布路由，依赖 perfect_engine）；main.py 是早期 v1 入口（依赖 engine）。scripts/smoke_ws.py 是 WebSocket 冒烟脚本。",
+        fileList: "backend/perfect_main.py   (249行) ← v2.8 主入口\nbackend/main.py           (122行) ← v1 旧入口\nbackend/scripts/smoke_ws.py (78行)",
+        plainTalk: "后端的大门。前端要什么数据、发什么指令都走这里。两扇门：perfect_main 是现在用的新门（还带'进门安检'=AST 校验），main 是留着的老门。"
+      },
+      {
+        shortName: "引擎层",
+        title: "引擎层 · 动态拓扑编排引擎",
+        tags: ["perfect_engine.py (619行)", "engine.py (470行)", "operator_registry.py (152行)"],
+        inputState: "API 入口下发的节点定义与控制指令",
+        outputState: "动态拓扑编排结果、系统遥测（CPU/内存，httpx + psutil）、SQLite 状态持久化",
+        actionDetail: "PerfectNeuralEngine 是 v2.8 核心：动态拓扑 + SQLite + 遥测采集；NeuralOperatorRegistry 是算子注册表（谁执行什么操作）；engine.py 是 v1 对应版。",
+        fileList: "backend/perfect_engine.py   (619行) ← v2.8 引擎\nbackend/engine.py           (470行) ← v1 引擎\nbackend/operator_registry.py (152行)",
+        plainTalk: "后端的发动机。收到'节点怎么编排'的指令后，它算拓扑、记状态（存进 SQLite）、顺手采集电脑的 CPU/内存喂给前端仪表盘。算子注册表像'工具箱清单'，登记每种操作由谁来做。"
+      },
+      {
+        shortName: "模型发布",
+        title: "模型与发布层 · 数据契约 / 校验 / 打包",
+        tags: ["models.py (88行)", "ast_validator.py (168行)", "publisher.py (60行)"],
+        inputState: "引擎与 API 层的数据结构需求",
+        outputState: "Pydantic 契约模型（前后端共用一套字段）、前端 AST 校验报告、zip 工件（StreamingResponse）",
+        actionDetail: "models.py 定义 WorkflowNode / WorkflowSnapshot / ComponentItem 等核心契约；ast_validator.py 用 HTMLParser 校验前端组件；publisher.py 把产物打包成 zip 下载。",
+        fileList: "backend/models.py        (88行)\nbackend/ast_validator.py (168行)\nbackend/publisher.py     (60行)",
+        plainTalk: "三个'后勤'：models 是前后端都认的'格式合同'（你传的数据长什么样）；ast_validator 是安检员（检查前端代码合不合规）；publisher 是打包员（把成品打 zip 给你下载）。"
+      },
+      {
+        shortName: "备件未接线",
+        title: "备件层 · 存在但主入口未引用（重要提示）",
+        tags: ["NeuralBioCanvas.tsx (197行)", "NeuralWebGLShader.tsx (184行)", "NeuralMinimap.tsx (94行)", "neuralAudio.ts (93行)", "useWorkflowBackend.ts (82行)"],
+        inputState: "无 —— Workbench.tsx 并未 import 这 5 个文件",
+        outputState: "仅 standalone-preview.html 独立预览场景使用",
+        actionDetail: "M29 动效引擎 1:1 落地的备件：WebGL 次表面散射着色器、鹰眼小地图、声效合成器、后端数据 Hook。当前 vite 构建会摇树剔除它们；如需启用，要在 Workbench.tsx 里显式 import 接线。",
+        fileList: "frontend/src/components/NeuralBioCanvas.tsx  (197行)\nfrontend/src/components/NeuralWebGLShader.tsx (184行)\nfrontend/src/components/NeuralMinimap.tsx     (94行)\nfrontend/src/utils/neuralAudio.ts             (93行)\nfrontend/src/hooks/useWorkflowBackend.ts      (82行)\n\n（另：backend/tests/ 7 个测试文件 + test/verify-perfect-workbench.js + docker-compose.yml + start.sh + bootstrap_studio.py）",
+        plainTalk: "这几个是'造好但还没插上电'的零件：高级着色器、小地图、音效、连后端的钩子。代码都在、测试也过，但工作台现在没用它们——想要哪个效果，得在 Workbench 里手动接上。"
+      }
+    ];
+
+    // 视图模式注册表：key -> { label, desc }
+    const MODES = [
+      { key: 'fileList', label: '文件清单', desc: '该层包含的文件与实测行数（wc -l，2026-11-05）。' },
+      { key: 'plainTalk', label: '大白话', desc: '不用术语，一句讲清这层是干嘛的。' }
+    ];
+
+    let state = { current: 0, mode: MODES[0].key };
+
+    // ===== 模式按钮：由 MODES 动态生成 =====
+    function renderModeButtons() {
+      const ctrl = document.getElementById('modeControl');
+      if (!ctrl) return;
+      ctrl.innerHTML = MODES.map(m =>
+        `<button class="segmented-btn" data-mode="${m.key}" onclick="setMode('${m.key}')">${m.label}</button>`
+      ).join('');
+    }
+
+    // ===== SVG 架构图：节点与连接线动态渲染 =====
+    function renderSvgDiagram() {
+      const nodeGroup = document.getElementById('nodeGroup');
+      const connectorGroup = document.getElementById('connectorGroup');
+      if (!nodeGroup || !connectorGroup) return;
+
+      const n = ITEMS.length;
+      const viewW = 880, pad = 14, nodeW = 96, nodeH = 52, nodeY = 30;
+      // gap = (viewW - 2*pad - n*nodeW)/(n-1) = (880-28-768)/7 = 12
+      const gap = (viewW - 2 * pad - n * nodeW) / (n - 1);
+
+      let nodesHtml = '', connectorsHtml = '';
+      ITEMS.forEach((item, idx) => {
+        const x = pad + idx * (nodeW + gap);
+        const cx = x + nodeW / 2, cy = nodeY + nodeH / 2;
+
+        if (idx < n - 1) {
+          connectorsHtml += `
+            <line id="connector-${idx}" x1="${x + nodeW + 3}" y1="${cy}"
+                  x2="${x + nodeW + gap - 6}" y2="${cy}"
+                  stroke="var(--stroke-default)" stroke-width="1.3" stroke-dasharray="0 4"
+                  stroke-linecap="round" marker-end="url(#lumi-caret)"/>`;
+        }
+        nodesHtml += `
+          <g class="diagram-node" id="svgNode-${idx}" onclick="selectStage(${idx})">
+            <rect x="${x}" y="${nodeY}" width="${nodeW}" height="${nodeH}" rx="10"
+                  fill="var(--surface-dim)" stroke="var(--stroke-default)" stroke-width="1"/>
+            <text x="${cx}" y="${nodeY + 20}" text-anchor="middle" font-size="11"
+                  font-family="var(--ff-mono)" fill="var(--on-surface-variant)">LAYER 0${idx + 1}</text>
+            <text x="${cx}" y="${nodeY + 38}" text-anchor="middle" font-size="12"
+                  font-family="var(--ff-sans)" font-weight="500" fill="var(--on-surface)">${item.shortName}</text>
+          </g>`;
+      });
+      nodeGroup.innerHTML = nodesHtml;
+      connectorGroup.innerHTML = connectorsHtml;
+    }
+
+    // ===== 事件处理器：只改 state，再调 updateViz() =====
+    function selectStage(i) {
+      if (i < 0 || i >= ITEMS.length) return;
+      state.current = i;
+      updateViz();
+    }
+    function changeStage(delta) {
+      const next = state.current + delta;
+      if (next >= 0 && next < ITEMS.length) { state.current = next; updateViz(); }
+    }
+    function setMode(mode) { state.mode = mode; updateViz(); }
+
+    // ===== 单渲染函数：所有 DOM 更新集中在这里 =====
+    function updateViz() {
+      const item = ITEMS[state.current];
+
+      document.getElementById('prevBtn').disabled = (state.current === 0);
+      document.getElementById('nextBtn').disabled = (state.current === ITEMS.length - 1);
+      document.getElementById('stageCounter').textContent =
+        `层 ${state.current + 1} / ${ITEMS.length}`;
+
+      ITEMS.forEach((_, idx) => {
+        const nodeEl = document.getElementById(`svgNode-${idx}`);
+        if (!nodeEl) return;
+        const rect = nodeEl.querySelector('rect');
+        if (idx === state.current) {
+          nodeEl.classList.add('is-active');
+          rect.setAttribute('fill', 'var(--accent-container)');
+          rect.setAttribute('stroke', 'var(--primary)');
+          rect.setAttribute('stroke-width', '2');
+        } else {
+          nodeEl.classList.remove('is-active');
+          rect.setAttribute('fill', 'var(--surface-dim)');
+          rect.setAttribute('stroke', 'var(--stroke-default)');
+          rect.setAttribute('stroke-width', '1');
+        }
+        if (idx < ITEMS.length - 1) {
+          const conn = document.getElementById(`connector-${idx}`);
+          if (conn) {
+            const active = idx === state.current || idx === state.current - 1;
+            conn.setAttribute('stroke', active ? 'var(--primary)' : 'var(--stroke-default)');
+            conn.classList.toggle('flow-line-active', active);
+            conn.setAttribute('marker-end', active ? 'url(#lumi-caret-active)' : 'url(#lumi-caret)');
+          }
+        }
+      });
+
+      document.getElementById('itemTitle').textContent = item.title;
+      document.getElementById('itemIdTag').textContent = `LAYER 0${state.current + 1}`;
+      document.getElementById('inputStateText').textContent = item.inputState;
+      document.getElementById('outputStateText').textContent = item.outputState;
+      document.getElementById('actionDetailText').textContent = item.actionDetail;
+
+      const pluginContainer = document.getElementById('pluginList');
+      if (pluginContainer) {
+        pluginContainer.innerHTML = (item.tags || [])
+          .map(p => `<span class="plugin-pill"></span>`).join('');
+        // 用 textContent 逐个填入，防注入
+        pluginContainer.querySelectorAll('.plugin-pill').forEach((el, i) => {
+          el.textContent = item.tags[i];
+        });
+      }
+
+      const mode = MODES.find(m => m.key === state.mode);
+      document.querySelectorAll('#modeControl .segmented-btn').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.mode === state.mode);
+      });
+      const codeViewer = document.getElementById('codeViewer');
+      if (codeViewer) codeViewer.textContent = item[state.mode] || '';
+      const desc = document.getElementById('modeDescription');
+      if (desc) desc.textContent = mode ? mode.desc : '';
+    }
+
+    renderModeButtons();
+    renderSvgDiagram();
+    updateViz();
+
+    // ===== iframe 自适应：向父页面上报高度 =====
+    (function autoResize() {
+      function notifyHeight() {
+        const c = document.querySelector('.widget-container') || document.body;
+        if (!c) return;
+        const h = Math.ceil(Math.max(c.getBoundingClientRect().bottom, c.scrollHeight));
+        window.parent.postMessage({ type: 'widget-resize', height: h }, '*');
+      }
+      window.addEventListener('load', () => setTimeout(notifyHeight, 120));
+      new ResizeObserver(() => notifyHeight()).observe(
+        document.querySelector('.widget-container') || document.body
+      );
+    })();
+  </script>
+</body>
+</html>

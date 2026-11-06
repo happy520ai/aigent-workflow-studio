@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "run_at": "2026-11-03T17:34:10.831Z",
+  "ok": true,
+  "reported_ok": true,
+  "execute": true,
+  "evidence_level": "execution_only",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v25.8.1"
+  },
+  "source": {
+    "before": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "c95c96d3d6e90fc259a3dec6cb2a39f7729f805470be49f569add4ee71f6e29f",
+      "files": 4,
+      "bytes": 86145
+    },
+    "after": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "c95c96d3d6e90fc259a3dec6cb2a39f7729f805470be49f569add4ee71f6e29f",
+      "files": 4,
+      "bytes": 86145
+    },
+    "stable": true
+  },
+  "results": [
+    {
+      "unit_root": "E:\\workflow工作台",
+      "kind": "test",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "test"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 381,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 791,
+        "stderr_bytes": 0,
+        "output_sha256": "ce5c8f0cee0757ce54f40a4871c45cb63d3883bd3d53254771b92a133442a98d",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    }
+  ]
+}

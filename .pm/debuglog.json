@@ -1,0 +1,60 @@
+{
+  "seq": 5,
+  "entries": [
+    {
+      "id": "D-0001",
+      "date": "2026-11-04T00:46:45.526Z",
+      "author": "",
+      "symptom": "星云 WebGL 背景疑似未渲染（着色器编译静默失败）；星云片元着色器中 col 在声明前被赋值。",
+      "root_cause": "v33 极光帘幕把 'col+=u_tint*band…' 拼接在 'vec3 col=vec3(0.006…)' 声明之前；GLSL ES 不允许未声明标识符赋值，mkSh 抛错后 gl=null，整个星云 WebGl 分支静默停摆。",
+      "fix": "将极光 band 赋值行移至 vec3 col 声明之后，随后叠加银河旋臂项。",
+      "verified_how": "vm.Script 语法编译通过 + 断言「vec3 col 声明先于 col+=band」通过；后续浏览器卷末实测复核星云可见。",
+      "files": [],
+      "task_id": "T-021"
+    },
+    {
+      "id": "D-0002",
+      "date": "2026-11-04T00:55:43.963Z",
+      "author": "",
+      "symptom": "__STEPFN 快进时 window.__e 出现 \"Cannot read properties of undefined (reading 'length')\"；按 L 进入连星模式后穹顶绘制崩溃。",
+      "root_cause": "v44 星语的 S.constMode/S.constCur 未在 S 状态字面量中初始化；首次按 L 置 constMode=true 后 drawCore 读 S.constCur.length 抛 undefined 错误，rAF 循环静默吞错。",
+      "fix": "S 字面量补 constMode:false,constCur:[] 初始化，重载后复测 L 连星+回车+ESC 全流程零报错。",
+      "verified_how": "浏览器重载后触发 X/双击/L/Enter/ESC + __STEPFN 150 帧，window.__e 为空。",
+      "files": [],
+      "task_id": null
+    },
+    {
+      "id": "D-0003",
+      "date": "2026-11-04T16:46:15.427Z",
+      "author": "",
+      "symptom": "用户截图指出 n1 音韵控制器内绿色波形呈栅栏柱状，与参考图不符。",
+      "root_cause": "n1 波形频谱形态实现为 30 根等宽全高栅栏柱（barcode 感），与参考图 f10 的有机音频包络波形（中心镜像山峰状连续轮廓）不符；用户截图正好处于该形态窗口被指出。",
+      "fix": "重写频谱形态为有机音频包络：44 根细条、中心线镜像填充、山峰包络（sin^0.7）+双正弦调制、高度上限 0.66h、宽度 0.86w 居中。",
+      "verified_how": "seek 至 T3≈1.0 截图：波形呈山峰状镜像包络，与参考 f10 同构；26 断言全绿。",
+      "files": [],
+      "task_id": "T-072"
+    },
+    {
+      "id": "D-0004",
+      "date": "2026-11-04T17:01:47.522Z",
+      "author": "",
+      "symptom": "pm-mcp 质量矩阵经 conftest os.execv 切 venv 后 747ms 就报 exit 0 通过，但 output_summary stdout_bytes=0、stderr_bytes=0、tests=null，与套件真实 10.3s 时长矛盾",
+      "root_cause": "Windows 上 os.execv 是「终止调用进程」语义：父进程立刻以退出码 0 消失，真实 pytest 在分离状态下继续跑，运行器捕获到 stdout/stderr 全为 0 字节的假通过报告（747ms）",
+      "fix": "conftest.py 引导改用 subprocess.run(venv_python -m pytest) 阻塞等待并 sys.exit(proc.returncode)；重跑矩阵 duration 11876ms、exit 0、stdout 103B，报告为真实证据",
+      "verified_how": "重跑 run_quality_matrix 第三次生成 quality-20261104-170049-676-0000.json：ok=true、exit_code=0、duration_ms=11876、stdout_bytes=103、source 21 文件 stable；并人工读取 JSON 复核字段",
+      "files": [],
+      "task_id": null
+    },
+    {
+      "id": "D-0005",
+      "date": "2026-11-06T00:31:51.298Z",
+      "author": "",
+      "symptom": "前端 JSON 配置区输入内容被自动重置回后端旧值，热更新永远提交旧配置（阶段D T3 首次尝试暴露）",
+      "root_cause": "useEffect 依赖 selectedNode 对象引用，而 node_update 广播每轮替换 nodes 数组中的节点对象（新引用），导致 memo 的 selectedNode 引用变化 → effect 重跑 → jsonDraft 被后端配置覆盖。任何用户输入在引擎下一轮广播（约1.6s）后即丢失",
+      "fix": "useEffect 依赖改为 [selectedNodeId, JSON.stringify(config_json)]（内容指纹）：仅切换节点或配置内容真实变化时重置草稿，node_update 心跳不再打断编辑",
+      "verified_how": "修复后 GUI 重试：Ctrl+A 全选输入新 JSON → 点热更新 → GET /workflow 返回 config_json={\"name\":\"e2e-hot-update\",\"level\":42,\"marker\":\"phaseD\"}",
+      "files": [],
+      "task_id": null
+    }
+  ]
+}

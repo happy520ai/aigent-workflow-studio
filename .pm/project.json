@@ -1,0 +1,45 @@
+{
+  "name": "神经元工作流平台 · 万象台",
+  "description": "神经元式智能体工作流可视化平台：以\"赛博蜘蛛 HUD + 道家哲学叙事\"为设计语言的单文件交互原型，持续迭代至电影级观感",
+  "stack": [
+    "HTML",
+    "JavaScript",
+    "Canvas 2D",
+    "手写3D投影"
+  ],
+  "goals": [
+    "顶级科幻电影级视觉细节，每一帧皆是画面",
+    "极强的交互感：拖拽/缩放/风暴/归元/章节切换",
+    "深度哲学叙事：观·势·衡·归 循环与道家引言",
+    "全中文界面为第一优先",
+    "后续接入真实 Agent 运行时"
+  ],
+  "phase": "",
+  "modules": [
+    "可视化原型",
+    "总控HUD",
+    "模拟数据引擎"
+  ],
+  "scan_ignore": [
+    "**/__pycache__/**",
+    "**/.pytest_cache/**",
+    "backend/aigent_checkpoints.db",
+    "aigent_checkpoints.db",
+    "frontend/node_modules/**",
+    "frontend/dist/**"
+  ],
+  "completion_evidence": {
+    "minimum": "execution_only",
+    "reason": "本任务为纯视觉动效层（Canvas/WebGL/关键帧渲染），前端无单测运行器，无法产出测试计数；质量证据为 tsc -b 零错误 + vite build 全绿（1585 模块）+ 质量矩阵 build 单元 exit 0，后端 pytest 53 项此前已全绿且本次未触碰后端。"
+  },
+  "exposure": "local",
+  "license": "",
+  "budgets": {
+    "maxFileLoc": 500,
+    "refactorQuotaPct": 20,
+    "sessionBlastRadius": 15,
+    "outputBudgetLines": 150
+  },
+  "created": "2026-11-03T16:32:16.041Z",
+  "updated": "2026-11-05T02:48:07.601Z"
+}

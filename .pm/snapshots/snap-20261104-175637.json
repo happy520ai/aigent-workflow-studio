@@ -1,0 +1,161 @@
+{
+  "taken_at": "2026-11-04T17:56:37.013Z",
+  "file": ".pm/snapshots/snap-20261104-175637.json",
+  "total_files": 48,
+  "total_loc": 6613,
+  "test_files": 9,
+  "skip_markers": 0,
+  "deps": [],
+  "by_ext": [
+    {
+      "ext": "py",
+      "files": 19,
+      "loc": 3078
+    },
+    {
+      "ext": "tsx",
+      "files": 5,
+      "loc": 1782
+    },
+    {
+      "ext": "html",
+      "files": 2,
+      "loc": 974
+    },
+    {
+      "ext": "md",
+      "files": 3,
+      "loc": 238
+    },
+    {
+      "ext": "ts",
+      "files": 3,
+      "loc": 177
+    },
+    {
+      "ext": "js",
+      "files": 4,
+      "loc": 151
+    },
+    {
+      "ext": "json",
+      "files": 2,
+      "loc": 48
+    },
+    {
+      "ext": "css",
+      "files": 1,
+      "loc": 43
+    },
+    {
+      "ext": "(无扩展名)",
+      "files": 2,
+      "loc": 30
+    },
+    {
+      "ext": "yml",
+      "files": 1,
+      "loc": 29
+    },
+    {
+      "ext": "conf",
+      "files": 1,
+      "loc": 28
+    },
+    {
+      "ext": "sh",
+      "files": 1,
+      "loc": 19
+    },
+    {
+      "ext": "txt",
+      "files": 2,
+      "loc": 9
+    },
+    {
+      "ext": "ini",
+      "files": 1,
+      "loc": 7
+    }
+  ],
+  "top_dirs": [
+    {
+      "dir": "backend",
+      "files": 15,
+      "loc": 2113
+    },
+    {
+      "dir": "frontend/src",
+      "files": 8,
+      "loc": 1994
+    },
+    {
+      "dir": ".",
+      "files": 6,
+      "loc": 1281
+    },
+    {
+      "dir": "backend/tests",
+      "files": 7,
+      "loc": 884
+    },
+    {
+      "dir": "test",
+      "files": 2,
+      "loc": 135
+    },
+    {
+      "dir": "frontend",
+      "files": 9,
+      "loc": 127
+    },
+    {
+      "dir": "backend/scripts",
+      "files": 1,
+      "loc": 79
+    }
+  ],
+  "largest_files": [
+    {
+      "path": "frontend/src/Workbench.tsx",
+      "loc": 1203
+    },
+    {
+      "path": "aigent-workflow-studio.html",
+      "loc": 961
+    },
+    {
+      "path": "backend/perfect_engine.py",
+      "loc": 620
+    },
+    {
+      "path": "backend/engine.py",
+      "loc": 471
+    },
+    {
+      "path": "frontend/src/components/SandboxAndTimeTravel.tsx",
+      "loc": 363
+    },
+    {
+      "path": "backend/perfect_main.py",
+      "loc": 250
+    },
+    {
+      "path": "backend/tests/test_perfect_engine.py",
+      "loc": 213
+    },
+    {
+      "path": "frontend/src/components/NeuralBioCanvas.tsx",
+      "loc": 198
+    },
+    {
+      "path": "backend/tests/test_perfect_api.py",
+      "loc": 190
+    },
+    {
+      "path": "backend/tests/test_engine.py",
+      "loc": 189
+    }
+  ],
+  "index_coverage_pct": 0
+}

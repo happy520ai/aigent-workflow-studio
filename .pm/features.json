@@ -1,0 +1,922 @@
+{
+  "seq": 59,
+  "features": [
+    {
+      "id": "F-001",
+      "name": "万象台 v15 电影级中文 HUD",
+      "description": "",
+      "module": "总控HUD",
+      "entry_files": [
+        "E:/zcode数据/.zcode/v2/visualizations/e712504c5cd72102e20c902b94ebfe21e1ed2de2cbd29cd9ce5f16aa1d3b7923/neuron-workflow-v15.html"
+      ],
+      "test_files": [],
+      "status": "implemented",
+      "created": "2026-11-03T16:46:37.180Z",
+      "updated": "2026-11-03T16:46:37.180Z"
+    },
+    {
+      "id": "F-002",
+      "name": "v35 星河 · 银河旋臂",
+      "description": "星云片元着色器新增极坐标对数螺旋银河带；修复 v33 引入的 col 声明顺序 bug；版本号统一为 VERSION 单一来源。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:46:49.403Z",
+      "updated": "2026-11-04T00:46:49.403Z"
+    },
+    {
+      "id": "F-003",
+      "name": "v36 天梯 · 道果成就阶梯",
+      "description": "道果成就阶梯：500 任务/重十二重解锁，金色天梯 UI+攀登进度线，localStorage 传世。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.396Z",
+      "updated": "2026-11-04T00:56:17.396Z"
+    },
+    {
+      "id": "F-004",
+      "name": "v37 月相 · 月轮",
+      "description": "朔望月算法真实月相，暗影滑移月盘+八相月名。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.517Z",
+      "updated": "2026-11-04T00:56:17.517Z"
+    },
+    {
+      "id": "F-005",
+      "name": "v38 惊蛰 · 天雷",
+      "description": "分叉落雷：主通道+侧枝、雷声白闪涟漪、随机调度。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.599Z",
+      "updated": "2026-11-04T00:56:17.599Z"
+    },
+    {
+      "id": "F-006",
+      "name": "v39 灵雨 · 三维雨帘",
+      "description": "符文雨三维化：深度、雨丝拖尾、落地溅漪。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.662Z",
+      "updated": "2026-11-04T00:56:17.662Z"
+    },
+    {
+      "id": "F-007",
+      "name": "v40 潮汐 · 月引潮力",
+      "description": "月相驱动潮汐系数，粒子球体向月微隆，潮汐表。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.722Z",
+      "updated": "2026-11-04T00:56:17.722Z"
+    },
+    {
+      "id": "F-008",
+      "name": "v41 星轨 · 长曝星迹",
+      "description": "离屏画布长曝星迹：二十八宿轨迹累积+慢衰减。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.780Z",
+      "updated": "2026-11-04T00:56:17.780Z"
+    },
+    {
+      "id": "F-009",
+      "name": "v42 太虚 · 镜界反转",
+      "description": "按 X 镜界反转：反色滤镜+调色板互换+星云反 tint+旋转倒转。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.838Z",
+      "updated": "2026-11-04T00:56:17.838Z"
+    },
+    {
+      "id": "F-010",
+      "name": "v43 虫洞 · 曲径传送",
+      "description": "双击开启虫洞：旋涡卷入粒子，2.4s 闭合。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:17.901Z",
+      "updated": "2026-11-04T00:56:17.901Z"
+    },
+    {
+      "id": "F-011",
+      "name": "v44 星语 · 连星成座",
+      "description": "L 连星模式：点选星官成座、命名入史册、随穹长驻。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T00:56:18.006Z",
+      "updated": "2026-11-04T00:56:18.006Z"
+    },
+    {
+      "id": "F-012",
+      "name": "v45 罗盘 · 风水辨凶",
+      "description": "八卦环罗盘，红针实时指向失衡智能体方位。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.138Z",
+      "updated": "2026-11-04T01:04:21.138Z"
+    },
+    {
+      "id": "F-013",
+      "name": "v46 时轮 · 回溯",
+      "description": "按住 K 时间放缓，60 秒事件刻度环。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.207Z",
+      "updated": "2026-11-04T01:04:21.207Z"
+    },
+    {
+      "id": "F-014",
+      "name": "v47 丹炉 · 炼丹术",
+      "description": "按 B 炼丹，三味真火+丹成真实增益。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.274Z",
+      "updated": "2026-11-04T01:04:21.274Z"
+    },
+    {
+      "id": "F-015",
+      "name": "v48 河洛 · 洛书方阵",
+      "description": "洛书 3×3 方阵，九格绑定智能体负载。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.352Z",
+      "updated": "2026-11-04T01:04:21.352Z"
+    },
+    {
+      "id": "F-016",
+      "name": "v49 卦象 · 蓍占",
+      "description": "按 I 系统熵起卦，六爻+六十四卦+断辞。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.417Z",
+      "updated": "2026-11-04T01:04:21.417Z"
+    },
+    {
+      "id": "F-017",
+      "name": "v50 五十 · 大成庆典",
+      "description": "五十章大成金印+章名滚动幕，每会话一次。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.484Z",
+      "updated": "2026-11-04T01:04:21.484Z"
+    },
+    {
+      "id": "F-018",
+      "name": "v51 灵兽 · 图腾觉醒",
+      "description": "八灵兽图腾，连中四元觉醒兽印。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.552Z",
+      "updated": "2026-11-04T01:04:21.552Z"
+    },
+    {
+      "id": "F-019",
+      "name": "v52 山水 · 千里江山",
+      "description": "程序化青绿山水三层，随运镜视差。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.619Z",
+      "updated": "2026-11-04T01:04:21.619Z"
+    },
+    {
+      "id": "F-020",
+      "name": "v53 篆韵 · 印玺变体",
+      "description": "章节巨字红底白文朱印变体+常驻朱砂小印。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.684Z",
+      "updated": "2026-11-04T01:04:21.684Z"
+    },
+    {
+      "id": "F-021",
+      "name": "v54 晨钟 · 暮鼓报时",
+      "description": "真实整点报时：晨钟三重金环，暮时鼓声。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:04:21.751Z",
+      "updated": "2026-11-04T01:04:21.751Z"
+    },
+    {
+      "id": "F-022",
+      "name": "v55 香火 · 青烟",
+      "description": "情绪驱动心烟从天眼升起卷曲上飘。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.050Z",
+      "updated": "2026-11-04T01:10:48.050Z"
+    },
+    {
+      "id": "F-023",
+      "name": "v56 墨池 · 滴墨",
+      "description": "失败滴墨入穹底污渍，缓慢洗散。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.122Z",
+      "updated": "2026-11-04T01:10:48.122Z"
+    },
+    {
+      "id": "F-024",
+      "name": "v57 千机 · 机关锁主题",
+      "description": "方向键六连解千机锁，开启天工铜金主题。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.190Z",
+      "updated": "2026-11-04T01:10:48.190Z"
+    },
+    {
+      "id": "F-025",
+      "name": "v58 星市 · 天市悬牌",
+      "description": "智能体头顶浮动灵价签。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.261Z",
+      "updated": "2026-11-04T01:10:48.261Z"
+    },
+    {
+      "id": "F-026",
+      "name": "v59 天平 · 秤心衡器",
+      "description": "天平横梁实时称量成败比，物理倾斜。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.335Z",
+      "updated": "2026-11-04T01:10:48.335Z"
+    },
+    {
+      "id": "F-027",
+      "name": "v60 甲子 · 轮回刻环",
+      "description": "六十甲子轮回刻环，当前干支金亮。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.452Z",
+      "updated": "2026-11-04T01:10:48.452Z"
+    },
+    {
+      "id": "F-028",
+      "name": "v61 紫微 · 十二宫盘",
+      "description": "十二宫环映射智能体，宫亮随活跃度。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.516Z",
+      "updated": "2026-11-04T01:10:48.516Z"
+    },
+    {
+      "id": "F-029",
+      "name": "v62 灵犀 · 通感映射",
+      "description": "音效开启时频谱均值驱动穹顶呼吸与增亮。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.583Z",
+      "updated": "2026-11-04T01:10:48.583Z"
+    },
+    {
+      "id": "F-030",
+      "name": "v63 织女 · 天梭曼陀罗",
+      "description": "金线自动织入智能体间，天梭光点飞行。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.649Z",
+      "updated": "2026-11-04T01:10:48.649Z"
+    },
+    {
+      "id": "F-031",
+      "name": "v64 海市 · 蜃楼天际线",
+      "description": "穹平线蜃楼群影，正弦摇曳。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:10:48.722Z",
+      "updated": "2026-11-04T01:10:48.722Z"
+    },
+    {
+      "id": "F-032",
+      "name": "v65 脉冲星 · 灯塔射电",
+      "description": "双灯塔射电束旋转扫掠，扫中滴答+闪光。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.304Z",
+      "updated": "2026-11-04T01:18:32.304Z"
+    },
+    {
+      "id": "F-033",
+      "name": "v66 云海 · 翻云层",
+      "description": "云团横渡穹顶，三重软圆叠层。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.375Z",
+      "updated": "2026-11-04T01:18:32.375Z"
+    },
+    {
+      "id": "F-034",
+      "name": "v67 流萤 · 集群趋向",
+      "description": "流萤群体弱引力 flock 向最忙智能体。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.444Z",
+      "updated": "2026-11-04T01:18:32.444Z"
+    },
+    {
+      "id": "F-035",
+      "name": "v68 棋枰 · 手谈",
+      "description": "九路棋枰，编排功成落黑子、失败落白子。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.514Z",
+      "updated": "2026-11-04T01:18:32.514Z"
+    },
+    {
+      "id": "F-036",
+      "name": "v69 展卷 · 全景平移",
+      "description": "[]键整台横向平移，复合全息倾角变换。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.584Z",
+      "updated": "2026-11-04T01:18:32.584Z"
+    },
+    {
+      "id": "F-037",
+      "name": "v70 七十 · 古稀卷轴",
+      "description": "古稀横卷展开：轴杆+绢帛+四十式时间线，N 键重演。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.656Z",
+      "updated": "2026-11-04T01:18:32.656Z"
+    },
+    {
+      "id": "F-038",
+      "name": "v71 天工 · 锻造台",
+      "description": "高活跃智能体自动锻造，成器入史册。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.724Z",
+      "updated": "2026-11-04T01:18:32.724Z"
+    },
+    {
+      "id": "F-039",
+      "name": "v72 圭表 · 日影钟",
+      "description": "真实太阳时角驱动圭表日影，正午金亮。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.794Z",
+      "updated": "2026-11-04T01:18:32.794Z"
+    },
+    {
+      "id": "F-040",
+      "name": "v73 占星 · 星曜相位",
+      "description": "轨道角对齐自动连相位线：合相金线、冲相赤线。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.865Z",
+      "updated": "2026-11-04T01:18:32.865Z"
+    },
+    {
+      "id": "F-041",
+      "name": "v74 灵脉 · 地脉光纹",
+      "description": "三条地脉弧线，亮度随吞吐与真算力脉动。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:18:32.936Z",
+      "updated": "2026-11-04T01:18:32.936Z"
+    },
+    {
+      "id": "F-042",
+      "name": "v75 凤鸣 · 涅槃重生",
+      "description": "累计 5 次失败凤凰浴火重生，火羽上弧+情绪清零。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.103Z",
+      "updated": "2026-11-04T01:26:49.103Z"
+    },
+    {
+      "id": "F-043",
+      "name": "v76 戴森 · 采集星环",
+      "description": "六座采集器环穹运转，光束采撷令牌。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.219Z",
+      "updated": "2026-11-04T01:26:49.219Z"
+    },
+    {
+      "id": "F-044",
+      "name": "v77 万象归一 · 主场景编排",
+      "description": "按 Q 编配全系统联袂演出 40 秒。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.289Z",
+      "updated": "2026-11-04T01:26:49.289Z"
+    },
+    {
+      "id": "F-045",
+      "name": "v78 编钟 · 五音键盘",
+      "description": "八键弹奏编钟，五声音阶+章节移调。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.360Z",
+      "updated": "2026-11-04T01:26:49.360Z"
+    },
+    {
+      "id": "F-046",
+      "name": "v79 湮灭 · 正反物质",
+      "description": "稀有湮灭事件：正反粒子汇聚+γ闪+冲击环。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.431Z",
+      "updated": "2026-11-04T01:26:49.431Z"
+    },
+    {
+      "id": "F-047",
+      "name": "v80 八十 · 长明火",
+      "description": "穹右下长明火长燃不熄，火苗随真算力旺衰。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.503Z",
+      "updated": "2026-11-04T01:26:49.503Z"
+    },
+    {
+      "id": "F-048",
+      "name": "v81 御风 · 全球风场",
+      "description": "全局风场相干驱动雨/烟/流萤/云。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.574Z",
+      "updated": "2026-11-04T01:26:49.574Z"
+    },
+    {
+      "id": "F-049",
+      "name": "v82 天命 · 玺诏颁行",
+      "description": "周期颁玺诏：绢帛诏书+朱印+敕文打字机。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.647Z",
+      "updated": "2026-11-04T01:26:49.647Z"
+    },
+    {
+      "id": "F-050",
+      "name": "v83 无极 · 太一终形",
+      "description": "按 E 万象归一：粒子坍缩太一奇点。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.719Z",
+      "updated": "2026-11-04T01:26:49.719Z"
+    },
+    {
+      "id": "F-051",
+      "name": "v84 封神 · 万象终章",
+      "description": "H 键封神终幕：终金印+八卷章名+金环，五十版大满贯收官。",
+      "module": "可视化原型",
+      "entry_files": [
+        "neuron-workflow-v15.html"
+      ],
+      "test_files": [
+        "test/verify-v15.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T01:26:49.796Z",
+      "updated": "2026-11-04T01:26:49.796Z"
+    },
+    {
+      "id": "F-052",
+      "name": "神经智能体工作流平台 · 仿图复刻",
+      "description": "仿参考图复刻的神经智能体工作流平台：神经元背景+组件树+工作流图+雷达/JSON/日志三面板，agent-flow-platform.html。",
+      "module": "可视化原型",
+      "entry_files": [
+        "agent-flow-platform.html"
+      ],
+      "test_files": [
+        "test/verify-agent-flow.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T15:00:43.723Z",
+      "updated": "2026-11-04T15:00:43.723Z"
+    },
+    {
+      "id": "F-053",
+      "name": "AIGENT-WORKFLOW STUDIO v2.8 · 完整还原",
+      "description": "AIGENT-WORKFLOW STUDIO v2.8 完整还原：五层布局+六组组件库（可拖拽）+五核心节点+三层发光神经突触连线+神经元动效+雷达/JSON/终端。",
+      "module": "可视化原型",
+      "entry_files": [
+        "aigent-workflow-studio.html"
+      ],
+      "test_files": [
+        "test/verify-aigent-studio.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T15:05:29.058Z",
+      "updated": "2026-11-04T15:05:29.058Z"
+    },
+    {
+      "id": "F-054",
+      "name": "神经智能体工作流平台 · 仿图复刻",
+      "description": "第一版仿图，已按用户要求删除，由 AIGENT-WORKFLOW STUDIO v2.8 取代。",
+      "module": "可视化原型",
+      "entry_files": [],
+      "test_files": [],
+      "status": "deprecated",
+      "created": "2026-11-04T15:07:20.935Z",
+      "updated": "2026-11-04T15:07:20.935Z"
+    },
+    {
+      "id": "F-055",
+      "name": "后端 FastAPI 服务 · 神经元 DAG 引擎与实时遥测（v2.8）",
+      "description": "AIGENT-WORKFLOW STUDIO v2.8 后端：Pydantic v2 全量数据契约；异步神经元 DAG 调度引擎（Run/Pause/Debug/Reset + asyncio 门控）；500ms 真实系统遥测流（CPU/内存/ECG/五维雷达/突触连线）；REST API（算子库搜索/工作台快照/控制指令/节点 JSON 热更新/全局搜索）与 /ws/telemetry WebSocket 广播中心；LLM_API_KEY 真实大模型接入，不可达自动降级本地仿真。",
+      "module": "backend",
+      "entry_files": [
+        "backend/main.py",
+        "backend/engine.py",
+        "backend/models.py"
+      ],
+      "test_files": [
+        "backend/tests/test_models.py",
+        "backend/tests/test_engine.py",
+        "backend/tests/test_api.py",
+        "backend/tests/test_websocket.py",
+        "backend/scripts/smoke_ws.py"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T17:01:47.435Z",
+      "updated": "2026-11-04T17:01:47.435Z"
+    },
+    {
+      "id": "F-056",
+      "name": "终极版 · 动态拓扑后端 + React 工作台（1:1）",
+      "description": "按用户终极版文档 1:1 交付：PerfectNeuralEngine（Kahn 动态拓扑分层调度 + SQLite 时间旅行断点 + 跨节点共享记忆总线 + 实时沙盒 Tailwind HTML 编译 + 算子拖拽注入）+ perfect_main 路由（节点注入/坐标同步/断点查询/沙盒预览）+ frontend Vite+React+Tailwind 工作台（节点拖拽/算子注入/JSON 热编辑/沙盒弹窗/WS 双模自适应 live+本地仿真回退）。",
+      "module": "backend",
+      "entry_files": [
+        "backend/perfect_engine.py",
+        "backend/perfect_main.py",
+        "frontend/src/Workbench.tsx"
+      ],
+      "test_files": [
+        "backend/tests/test_perfect_engine.py",
+        "backend/tests/test_perfect_api.py",
+        "test/verify-perfect-workbench.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T17:44:34.661Z",
+      "updated": "2026-11-04T17:44:34.661Z"
+    },
+    {
+      "id": "F-057",
+      "name": "终极版动态拓扑工作台（AIGENT-WORKFLOW STUDIO v2.8 Ultimate）",
+      "description": "模板 16 板块 1:1 全栈落地：12算子注册表+AST自愈校验内联进 Kahn 拓扑执行流水线的 FastAPI 后端（含时间旅行断点/突触连线 CRUD/LLM热更新/ZIP发布），React+Vite+Tailwind 工作台（60FPS分形神经元画布、Shift连线、三合一沙盒时间旅行弹窗、MiniIconRail 抽屉），Docker Compose + Nginx WS 生产部署与一键启动脚本",
+      "module": "backend + frontend",
+      "entry_files": [
+        "backend/perfect_main.py",
+        "backend/perfect_engine.py",
+        "frontend/src/Workbench.tsx",
+        "frontend/src/main.tsx"
+      ],
+      "test_files": [
+        "backend/test_workflow_e2e.py",
+        "backend/tests/test_perfect_api.py",
+        "backend/tests/test_perfect_engine.py",
+        "backend/scripts/smoke_ws.py"
+      ],
+      "status": "implemented",
+      "created": "2026-11-04T17:56:34.921Z",
+      "updated": "2026-11-04T17:56:34.921Z"
+    },
+    {
+      "id": "F-058",
+      "name": "动效引擎 1:1（生物发光神经元/微组件/WebGL/小地图/声效）",
+      "description": "按《动画效果.txt》模板 1:1 落地的前端动效引擎：BioluminescentCanvas 加色混合神经元画布、NodeMicroWidgets 四微组件、NeuralWebGLShader FBM 着色器、NeuralMinimap 鹰眼小地图、neuralAudio Web Audio 声效合成器、Workbench 全量合成版、standalone-preview.html 独立预览包",
+      "module": "可视化原型",
+      "entry_files": [
+        "frontend/src/components/BioluminescentCanvas.tsx",
+        "frontend/src/components/NodeMicroWidgets.tsx",
+        "frontend/src/components/NeuralWebGLShader.tsx",
+        "frontend/src/components/NeuralMinimap.tsx",
+        "frontend/src/utils/neuralAudio.ts",
+        "frontend/src/Workbench.tsx",
+        "frontend/src/index.css",
+        "frontend/standalone-preview.html"
+      ],
+      "test_files": [
+        "frontend/package.json"
+      ],
+      "status": "implemented",
+      "created": "2026-11-05T02:51:11.906Z",
+      "updated": "2026-11-05T02:51:11.906Z"
+    },
+    {
+      "id": "F-059",
+      "name": "v2.8 前后端接线与安全加固",
+      "description": "按执行模板完成：后端算子别名归一化+数据沿边流动+真实遥测指标+单节点错误隔离+运行记录API+拓扑环检测/删除级联+AST安全清洗+设置接口守卫与SSRF校验+live-app沙盒CSP+CORS白名单+SQLite拓扑持久化与断点剪枝迁移；前端统一API配置+WS指数退避重连+连接指示灯+增删改全走后端+三大功能抽屉+雷达标签与连线徽章修复+时间旅行拓扑还原。pytest 83全绿、verify 47:0、build零错误、GUI端到端12项通过",
+      "module": "backend+frontend",
+      "entry_files": [
+        "backend/perfect_main.py",
+        "backend/perfect_engine.py",
+        "backend/operator_registry.py",
+        "backend/ast_validator.py",
+        "frontend/src/Workbench.tsx",
+        "frontend/src/config.ts"
+      ],
+      "test_files": [
+        "backend/tests/test_operator_mapping.py",
+        "backend/tests/test_dataflow.py",
+        "backend/tests/test_topology_api.py",
+        "backend/tests/test_error_isolation.py",
+        "backend/tests/test_ast_security.py",
+        "backend/tests/test_settings_guard.py",
+        "backend/tests/test_live_app_csp.py",
+        "backend/tests/test_persistence.py",
+        "backend/tests/test_search_endpoint.py",
+        "backend/tests/test_cors.py",
+        "test/verify-perfect-workbench.js"
+      ],
+      "status": "implemented",
+      "created": "2026-11-06T00:31:25.199Z",
+      "updated": "2026-11-06T00:31:25.199Z"
+    }
+  ]
+}
