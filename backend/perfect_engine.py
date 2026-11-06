@@ -675,7 +675,8 @@ class PerfectNeuralEngine:
         if node.type in ("ui_generation", "agent_codegen"):
             raw_html = ""
             if api_key:
-                # T24：经 LLMClient 走重试/信号量/可配超时；T12 的解析复检按尝试即时进行
+                # T24/T31：经 LLMClient 走信号量/可配超时 + SSE 流式（增量经 node_stream 推送）；
+                # T12 的解析复检按尝试即时进行
                 llm = LLMClient()
 
                 async def _make_transport() -> httpx.AsyncBaseTransport:
@@ -685,25 +686,37 @@ class PerfectNeuralEngine:
                     )
                     return IPPinnedTransport(pinned_ip=httpx.URL(pinned_url).host)
 
-                result = await llm.chat_completion(
+                messages = [
+                    {"role": "system", "content": "Generate a compact Tailwind HTML card snippet for a cyberpunk AI telemetry widget. Return pure HTML only."},
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {"config": node.config_json, "inputs": inputs},
+                            ensure_ascii=False,
+                        ),
+                    },
+                ]
+                result_parts: List[str] = []
+                stream_error: Optional[str] = None
+                async for chunk in llm.chat_completion_stream(
                     api_base=self.llm_config["api_base"],
                     api_key=api_key,
                     model=self.llm_config["model"],
-                    messages=[
-                        {"role": "system", "content": "Generate a compact Tailwind HTML card snippet for a cyberpunk AI telemetry widget. Return pure HTML only."},
-                        {
-                            "role": "user",
-                            "content": json.dumps(
-                                {"config": node.config_json, "inputs": inputs},
-                                ensure_ascii=False,
-                            ),
-                        },
-                    ],
+                    messages=messages,
                     max_tokens=1024,
                     transport_factory=_make_transport,
-                )
-                if result["ok"]:
-                    raw_html = result["content"]
+                ):
+                    if chunk.get("delta"):
+                        result_parts.append(chunk["delta"])
+                        # T31 契约：增量事件 node_stream（node_id + delta）；最终态仍由 node_update 携带
+                        await self.ws_manager.broadcast(
+                            "node_stream", {"node_id": node.id, "delta": chunk["delta"]}
+                        )
+                    if chunk.get("done"):
+                        stream_error = chunk.get("error")
+                full_text = "".join(result_parts)
+                if stream_error is None and full_text.strip():
+                    raw_html = full_text
                     node.degraded = False
                     metrics.observe_llm("success")
                 else:
@@ -711,8 +724,8 @@ class PerfectNeuralEngine:
                     node.degraded = True
                     metrics.observe_llm("failure")
                     metrics.observe_llm("degraded")
-                    logger.warning(f"llm_call_failed node_id={node.id} attempts={result['attempts']} degraded=true error={result['error']}")
-                    await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {result['error']}")
+                    logger.warning(f"llm_stream_failed node_id={node.id} degraded=true error={stream_error}")
+                    await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {stream_error}")
                     await asyncio.sleep(0.3)
                     raw_html = self._default_sandbox_template(
                         f"AI 生成组件 #{random.randint(100, 999)} ({node.config_json.get('name', 'Agent')})"

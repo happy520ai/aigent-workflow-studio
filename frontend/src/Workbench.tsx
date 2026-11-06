@@ -339,6 +339,7 @@ export default function Workbench() {
 
   const [cpuSeries, setCpuSeries] = useState<number[]>([35, 58, 28, 72, 40, 63, 34, 76, 48, 65, 39, 58]);
   const [ecgSeries, setEcgSeries] = useState<number[]>([]);
+  const [streamInfo, setStreamInfo] = useState<{ nodeId: string; text: string } | null>(null);
   const [memSeries, setMemSeries] = useState<number[]>([62, 64, 63, 66, 64, 67, 65, 68, 66, 67, 65, 68]);
   const [radar, setRadar] = useState<RadarMetrics>({
     radar_perception: 92,
@@ -492,7 +493,17 @@ export default function Workbench() {
                 : x
             )
           );
+          // T31：最终态到达，结束该节点的流式显示
+          setStreamInfo((prev) => (prev && prev.nodeId === n.id ? null : prev));
           if (msg.data.shared_memory_bus) setSharedMemoryBus(msg.data.shared_memory_bus);
+        } else if (msg.event === 'node_stream') {
+          // T31：LLM 增量输出（node_id + delta），右侧面板实时累积显示
+          const { node_id: streamNodeId, delta } = msg.data;
+          setStreamInfo((prev) =>
+            prev && prev.nodeId === streamNodeId
+              ? { nodeId: streamNodeId, text: prev.text + delta }
+              : { nodeId: streamNodeId, text: delta }
+          );
         } else if (msg.event === 'terminal_log') {
           setTerminalLogs(msg.data.logs);
         }
@@ -1474,6 +1485,19 @@ export default function Workbench() {
           </div>
 
           <div className="bg-[#121b2e]/90 border border-slate-800 rounded-xl p-3 flex-1 flex flex-col min-h-[175px]">
+            {/* T31：LLM 流式输出（node_stream 增量实时显示；node_update 最终态到达后收起） */}
+            {streamInfo && (
+              <div className="mb-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-[10px] text-cyan-300 font-mono">流式输出 · {streamInfo.nodeId}</span>
+                  <span className="text-[10px] text-slate-500">{streamInfo.text.length} 字符</span>
+                </div>
+                <pre className="text-[10px] font-mono text-cyan-100/90 whitespace-pre-wrap break-all max-h-28 overflow-y-auto">
+                  {streamInfo.text}
+                </pre>
+              </div>
+            )}
             <div className="text-xs font-semibold text-slate-200 mb-2">动态日志与 AI 终端</div>
             <div className="flex-1 bg-[#080c16] border border-slate-800/90 rounded-lg p-2.5 font-mono text-[11px] space-y-1 overflow-y-auto">
               {terminalLogs.map((line, idx) => {
