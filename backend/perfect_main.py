@@ -87,6 +87,40 @@ def _admin_token() -> str:
     return os.getenv("AIGENT_ADMIN_TOKEN", "").strip()
 
 
+def _ws_allowed_origins() -> List[str]:
+    """WS Origin 白名单：与 CORS_ORIGINS 同源同默认（T11）"""
+    return [
+        o.strip()
+        for o in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
+        ).split(",")
+        if o.strip()
+    ]
+
+
+def _authenticate_websocket(websocket: WebSocket) -> Optional[int]:
+    """WS 握手鉴权：返回 None=通过；否则返回应使用的 close code。
+    - Origin 校验独立于令牌：浏览器跨站 WS 攻击必带 Origin，非浏览器客户端（无 Origin）放行；
+    - 令牌校验仅在配置 AIGENT_ADMIN_TOKEN 后启用：?token= 或 Sec-WebSocket-Protocol 子协议。"""
+    origin = websocket.headers.get("origin", "")
+    if origin and origin not in _ws_allowed_origins():
+        return 4403
+    token = _admin_token()
+    if not token:
+        return None
+    supplied = websocket.query_params.get("token", "")
+    if not supplied:
+        for sub in websocket.scope.get("subprotocols") or []:
+            sub_text = sub.decode("latin-1") if isinstance(sub, bytes) else str(sub)
+            if sub_text == token:
+                supplied = token
+                break
+    if supplied and hmac.compare_digest(supplied, token):
+        return None
+    return 4401
+
+
 def _sign_live_app(exp_epoch: int, token: str) -> str:
     return hmac.new(token.encode("utf-8"), f"live-app:{exp_epoch}".encode("utf-8"), hashlib.sha256).hexdigest()
 
@@ -509,7 +543,13 @@ async def mint_live_app_url(ttl_seconds: int = Query(default=300, ge=10, le=3600
 
 @app.websocket("/ws/telemetry")
 async def telemetry_ws(websocket: WebSocket):
-    await ws_manager.connect(websocket)
+    # T11：先完成握手再鉴权，失败以自定义关闭码断开（浏览器可在 onclose 中读到 4401/4403）
+    await websocket.accept()
+    close_code = _authenticate_websocket(websocket)
+    if close_code is not None:
+        await websocket.close(code=close_code)
+        return
+    await ws_manager.connect(websocket, accept=False)
     try:
         await websocket.send_json(
             {

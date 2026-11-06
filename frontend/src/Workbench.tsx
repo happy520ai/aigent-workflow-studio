@@ -38,7 +38,7 @@ import {
 } from './components/NodeMicroWidgets';
 import { SandboxAndTimeTravelModal } from './components/SandboxAndTimeTravel';
 import { useSynapseLinker } from './hooks/useSynapseLinker';
-import { API_BASE, WS_URL } from './config';
+import { API_BASE, WS_URL, buildWsUrl } from './config';
 
 interface NodePosition {
   x: number;
@@ -435,7 +435,7 @@ export default function Workbench() {
     const connect = () => {
       if (disposed || generation !== wsLoopGeneration) return;
       try {
-        ws = new WebSocket(WS_URL);
+        ws = new WebSocket(buildWsUrl());
         moduleWs = ws;
       } catch {
         scheduleReconnect();

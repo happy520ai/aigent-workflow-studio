@@ -162,8 +162,10 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: Set[WebSocket] = set()
 
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket, accept: bool = True) -> None:
+        # accept=False 供端点先完成握手并鉴权后登记连接（T11 WS 鉴权）
+        if accept:
+            await websocket.accept()
         self.active_connections.add(websocket)
 
     def disconnect(self, websocket: WebSocket) -> None:

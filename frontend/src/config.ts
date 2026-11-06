@@ -18,3 +18,29 @@ const prodWsUrl =
 
 export const WS_URL =
   import.meta.env.VITE_WS_URL ?? (DEV ? 'ws://localhost:8000/ws/telemetry' : prodWsUrl);
+
+// ---- T11/T43：管理令牌（sessionStorage，不落 localStorage、不入 URL 之外的地方） ----
+export const ADMIN_TOKEN_KEY = 'aigent_admin_token';
+
+export function getAdminToken(): string {
+  try {
+    return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setAdminToken(token: string): void {
+  try {
+    if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // 隐私模式等场景下静默失败
+  }
+}
+
+/** WS 连接地址：配置了管理令牌时追加 ?token=（服务端也接受 Sec-WebSocket-Protocol 子协议） */
+export function buildWsUrl(): string {
+  const token = getAdminToken();
+  return token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
+}
