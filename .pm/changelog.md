@@ -1,5 +1,11 @@
 # 变更日志（自动生成，来自 sessions.json）
 
+## 2026-11-06 — 未知
+
+T-078 生产化 P1：安全加固（T10-T16）：P1 六任务全部完成并逐任务提交：T10 全局鉴权中间件+live-app签名URL（7测）、T11 WS握手鉴权 Origin/token 4401/4403（6测）+前端buildWsUrl、T12 DNS rebinding 请求时IP固定（6测）、T13 令牌桶限流+体积/数量上限（6测）、T14 安全响应头+nginx CSP（3测）、T15 Tailwind本地化去CDN去unsafe-inline（2新增）、T16 pip-audit升级fastapi0.162/starlette1.10清零14漏洞+audit_security 9项全处置（报告 docs/security-scan.md 不入files因docs目录无测试覆盖）。关口：pytest 113绿+build OK+verify 47:0
+
+改动文件（15）: backend/perfect_main.py, backend/perfect_engine.py, backend/requirements.txt, backend/requirements-dev.txt, backend/static/vendor/tailwindcss-play.js, frontend/nginx.conf, frontend/src/config.ts, frontend/src/Workbench.tsx, backend/tests/test_auth_all_routes.py, backend/tests/test_ws_auth.py, backend/tests/test_dns_rebinding.py, backend/tests/test_limits.py, backend/tests/test_security_headers.py, backend/tests/test_live_app_csp.py, backend/tests/conftest.py
+
 ## 2026-11-06 — zcode
 
 P0 完成：git init+.gitignore+首提（无 .db/.env）；基线 pytest 83 绿 + build 245K + verify 47:0 存 docs/baseline.txt；文档↔源码核对 49 条（47一致/2行号级漂移/0虚）存 docs/doc-drift.md。pm 任务 T-077 因纯文档不适用代码门取消，改由 git 留痕

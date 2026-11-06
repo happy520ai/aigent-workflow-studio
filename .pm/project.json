@@ -21,12 +21,11 @@
     "模拟数据引擎"
   ],
   "scan_ignore": [
-    "**/__pycache__/**",
-    "**/.pytest_cache/**",
+    "frontend/dist/**",
     "backend/aigent_checkpoints.db",
-    "aigent_checkpoints.db",
-    "frontend/node_modules/**",
-    "frontend/dist/**"
+    "backend/data/**",
+    "gui-test-screenshots/**",
+    "*.tsbuildinfo"
   ],
   "completion_evidence": {
     "minimum": "execution_only",
@@ -41,5 +40,5 @@
     "outputBudgetLines": 150
   },
   "created": "2026-11-03T16:32:16.041Z",
-  "updated": "2026-11-05T02:48:07.601Z"
+  "updated": "2026-11-06T18:07:28.264Z"
 }

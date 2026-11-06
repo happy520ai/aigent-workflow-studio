@@ -1,5 +1,5 @@
 {
-  "seq": 107,
+  "seq": 108,
   "sessions": [
     {
       "id": "S-0001",
@@ -1800,6 +1800,47 @@
         "P1-T10 全局鉴权 require_auth + live-app 签名URL",
         "P1 依次 T11-T16"
       ]
+    },
+    {
+      "id": "S-0108",
+      "date": "2026-11-06T18:08:33.925Z",
+      "author": "",
+      "summary": "T-078 生产化 P1：安全加固（T10-T16）：P1 六任务全部完成并逐任务提交：T10 全局鉴权中间件+live-app签名URL（7测）、T11 WS握手鉴权 Origin/token 4401/4403（6测）+前端buildWsUrl、T12 DNS rebinding 请求时IP固定（6测）、T13 令牌桶限流+体积/数量上限（6测）、T14 安全响应头+nginx CSP（3测）、T15 Tailwind本地化去CDN去unsafe-inline（2新增）、T16 pip-audit升级fastapi0.162/starlette1.10清零14漏洞+audit_security 9项全处置（报告 docs/security-scan.md 不入files因docs目录无测试覆盖）。关口：pytest 113绿+build OK+verify 47:0",
+      "files": [
+        "backend/perfect_main.py",
+        "backend/perfect_engine.py",
+        "backend/requirements.txt",
+        "backend/requirements-dev.txt",
+        "backend/static/vendor/tailwindcss-play.js",
+        "frontend/nginx.conf",
+        "frontend/src/config.ts",
+        "frontend/src/Workbench.tsx",
+        "backend/tests/test_auth_all_routes.py",
+        "backend/tests/test_ws_auth.py",
+        "backend/tests/test_dns_rebinding.py",
+        "backend/tests/test_limits.py",
+        "backend/tests/test_security_headers.py",
+        "backend/tests/test_live_app_csp.py",
+        "backend/tests/conftest.py"
+      ],
+      "file_hashes": {
+        "backend/perfect_main.py": "329f6676fe77813b1ec6272ad01d7c6cd05748c2e1ec8978eba6782117041414",
+        "backend/perfect_engine.py": "a197a0ba0c0b8fde9a143e8a27334b953bbf966f487ae8590453e27379ac2845",
+        "backend/requirements.txt": "12f2c2d3e04a40df7c5cedde418ba66c911720add59e15b6e8e5c576e06d8ff4",
+        "backend/requirements-dev.txt": "1c715d1e1118148ab5af6f44bc758d6bfb021d46ccc1c1e78046453c63d91aaf",
+        "backend/static/vendor/tailwindcss-play.js": "2c827dd0ea7e29f559d5fa514cc16396a62f59d3834bc881600d4b03b52d92da",
+        "frontend/nginx.conf": "208a963c1960efbd81eed03c26b90b24d4300d0d793a162cdc62183402b0f57d",
+        "frontend/src/config.ts": "ea0a8552227302765662f0429ba6b364f41728816437099d065d2e5b13338d52",
+        "frontend/src/Workbench.tsx": "fd55713f84a7dc717a6275b7cbd85e702504cf132969827e01edf06b19f29978",
+        "backend/tests/test_auth_all_routes.py": "1ada3ae9188e582bf5c2b88cf25920a621daa14993b7ac2ebb0b8108bafcd3e4",
+        "backend/tests/test_ws_auth.py": "5b0d4e7fbc7d425d60804395b63c2d7a6a204c204b89d56b2b8fbfbd9a27e664",
+        "backend/tests/test_dns_rebinding.py": "19eaa59b1e82a86683152c7fcea6133c6318ac0ffd66e503eb17527acc72ddce",
+        "backend/tests/test_limits.py": "0a7ef26cd941f3cdc87816e66ced60cdce6fff6c24ebbcca31df013788c542aa",
+        "backend/tests/test_security_headers.py": "09ea830f7f363e217478166ff8d2e0e9a191c80d55305432da3ae23c1090351e",
+        "backend/tests/test_live_app_csp.py": "8c31e4e8c6465412e980a531ef6e2aca091272ce826b7fe40051be840cdd715a",
+        "backend/tests/conftest.py": "10242fb79c9c82f1c3381376b9ae35c99647501d7905e8a645fc074b0cf67524"
+      },
+      "next_steps": []
     }
   ]
 }

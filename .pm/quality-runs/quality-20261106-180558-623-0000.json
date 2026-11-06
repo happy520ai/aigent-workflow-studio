@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "run_at": "2026-11-06T18:05:58.623Z",
+  "ok": false,
+  "reported_ok": false,
+  "execute": true,
+  "evidence_level": "execution_only",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v25.8.1"
+  },
+  "source": {
+    "before": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "946146ef6fbc2850d0ff24d13cf1963a6b01a535c83bf32c5650ba23bf434c9d",
+      "files": 95,
+      "bytes": 22550550
+    },
+    "after": {
+      "algorithm": "sha256-tree-v1",
+      "sha256": "81b02a96c24d65708e172a95c9374d7133ee218688f424edc4d69a07badcbf06",
+      "files": 95,
+      "bytes": 22550550
+    },
+    "stable": false
+  },
+  "results": [
+    {
+      "unit_root": "E:\\workflow工作台\\backend",
+      "kind": "test",
+      "command": "python",
+      "args": [
+        "-m",
+        "pytest"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 22603,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 597,
+        "stderr_bytes": 0,
+        "output_sha256": "649232bed855781b1ab9a7e969584eff12a0c88e6c8a17f40a09a6bd2fe28576",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    },
+    {
+      "unit_root": "E:\\workflow工作台\\frontend",
+      "kind": "test",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "test"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "signal": null,
+      "duration_ms": 11012,
+      "output_truncated": false,
+      "output_summary": {
+        "stdout_bytes": 583,
+        "stderr_bytes": 0,
+        "output_sha256": "f6950b244bbbdd4f1f494dea4a749c89902ee78c0a18df312b2ca65e1a6e9bb7",
+        "tests": null,
+        "passed": null,
+        "failed": null,
+        "cancelled": null,
+        "skipped": null,
+        "todo": null,
+        "coverage": null,
+        "counter_source": "unknown",
+        "evidence_level": "execution_only"
+      },
+      "error": ""
+    }
+  ]
+}
