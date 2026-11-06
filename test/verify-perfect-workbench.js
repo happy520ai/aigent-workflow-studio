@@ -1,5 +1,7 @@
 'use strict';
-/* 终极版交付件结构校验：perfect_engine.py / perfect_main.py / operator_registry.py / Workbench.tsx 关键锚点 */
+/* 结构校验（T54：职责降级为「文件存在性 + 关键锚点」检查）。
+ * 真正的行为验证已交给 vitest 单测（npm test）与 Playwright E2E；本脚本仅防「文件被误删/锚点语义漂移」。
+ * P4-T40 拆分后，前端锚点按新模块位置核对。 */
 const fs = require('fs');
 const path = require('path');
 
@@ -14,6 +16,11 @@ const engineSrc = fs.readFileSync(path.join(root, 'backend', 'perfect_engine.py'
 const mainSrc = fs.readFileSync(path.join(root, 'backend', 'perfect_main.py'), 'utf8');
 const registrySrc = fs.readFileSync(path.join(root, 'backend', 'operator_registry.py'), 'utf8');
 const wbSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'Workbench.tsx'), 'utf8');
+const read = (...segs) => fs.readFileSync(path.join(root, ...segs), 'utf8');
+const socketSrc = read('frontend', 'src', 'hooks', 'useWorkflowSocket.ts');
+const nodeCardSrc = read('frontend', 'src', 'components', 'NodeCard.tsx');
+const terminalLogSrc = read('frontend', 'src', 'components', 'TerminalLog.tsx');
+const widgetsTestSrc = read('frontend', 'src', 'hooks', 'useWorkflowSocket.test.tsx');
 const canvasSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'components', 'BioluminescentCanvas.tsx'), 'utf8');
 const widgetsSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'components', 'NodeMicroWidgets.tsx'), 'utf8');
 const configSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'config.ts'), 'utf8');
@@ -66,12 +73,12 @@ ok(canvasSrc.includes('drawOrganicSoma'), '有机神经元胞体绘制存在');
 ok(canvasSrc.includes('drawCometOnCurve'), '突触彗星脉冲绘制存在');
 ok(wbSrc.includes('radar_perception') && wbSrc.includes('RadarSweepWidget'), '五维雷达图组件接入');
 ok(['感知', '响应度', '准确度', '并发度', '稳定度'].every((t) => widgetsSrc.includes(t)), '五维雷达标签齐全且不重复');
-ok(wbSrc.includes('PhosphorECGWidget'), '事件捕获节点心电波形存在');
-ok(wbSrc.includes('dragOffsetRef') && wbSrc.includes('onMouseDown'), '节点拖拽交互存在');
+ok(nodeCardSrc.includes('PhosphorECGWidget') && widgetsSrc.includes('PhosphorECGWidget'), '事件捕获节点心电波形存在（NodeCard/NodeMicroWidgets）');
+ok(wbSrc.includes('dragOffsetRef') && wbSrc.includes('onNodeMouseDown') && nodeCardSrc.includes('onNodeMouseDown'), '节点拖拽交互存在（Workbench+NodeCard）');
 ok(wbSrc.includes('热更新') && wbSrc.includes('JSON 语法校验未通过'), 'JSON 配置热编辑与校验存在');
 ok(wbSrc.includes('showSandboxModal') && wbSrc.includes('SandboxAndTimeTravelModal'), 'DOM 沙盒实时预览弹窗存在');
-ok(wbSrc.includes('window.setInterval'), '本地仿真回退内核（后端未启动时驱动动画）存在');
-ok(wbSrc.includes('text-amber-400') && wbSrc.includes('text-emerald-400'), 'AI 终端日志分级着色存在');
+ok(socketSrc.includes('setInterval') && socketSrc.includes('onSimulateTelemetry'), '本地仿真回退内核（后端未启动时驱动动画）存在（useWorkflowSocket）');
+ok(terminalLogSrc.includes('text-amber-400') && terminalLogSrc.includes('text-emerald-400') && terminalLogSrc.includes('classifyLogLine'), 'AI 终端日志分级着色存在（TerminalLog.classifyLogLine）');
 ok(wbSrc.includes('AIGENT-WORKFLOW STUDIO v2.8'), '顶部标题栏品牌标识存在');
 ok(wbSrc.includes('已连接后端') && wbSrc.includes('本地仿真'), 'WS 连接指示灯存在');
 
