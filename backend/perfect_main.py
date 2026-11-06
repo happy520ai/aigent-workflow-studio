@@ -6,13 +6,16 @@ import io
 import ipaddress
 import json
 import os
+import re
 import socket
 import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+
+import httpx
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,8 +26,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from ast_validator import ASTValidationReport, FrontendASTValidator
+from llm_client import LLMClient
 from metrics import metrics as app_metrics
 from models import ComponentItem, ControlRequest, NeuralEdge, WorkflowNode, WorkflowSnapshot
+from net_guard import IPPinnedTransport, resolve_and_pin_api_base
 from obs_logging import configure_logging, get_logger, request_id_var
 from operator_registry import _ALIASES
 from perfect_engine import ConnectionManager, PerfectNeuralEngine
@@ -406,6 +411,43 @@ EXPORT_SCHEMA = "aigent-workflow"
 EXPORT_SCHEMA_VERSION = 1
 
 
+def _validate_topology_payload(
+    nodes: Any,
+    edges: Any,
+    base_node_ids: Optional[set] = None,
+    count_base_nodes: int = 0,
+    count_base_edges: int = 0,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """T33/T34 共享校验：形状 / 类型白名单 / 重复 id / 悬空边 / 数量上限。失败抛 400。"""
+    if not isinstance(nodes, list) or not isinstance(edges, list):
+        raise HTTPException(status_code=400, detail="nodes/edges 必须为数组")
+    if count_base_nodes + len(nodes) > int(os.getenv("AIGENT_MAX_NODES", "200")):
+        raise HTTPException(status_code=400, detail="节点数超过上限")
+    if count_base_edges + len(edges) > int(os.getenv("AIGENT_MAX_EDGES", "500")):
+        raise HTTPException(status_code=400, detail="连线数超过上限")
+
+    allowed_types = set(engine.operator_registry._handlers) | set(_ALIASES)
+    node_ids = set(base_node_ids or ())
+    for n in nodes:
+        try:
+            WorkflowNode(**n)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"节点数据非法: {n.get('id', '?')}: {exc}") from exc
+        if n.get("type") not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"未知节点类型: {n.get('type')}")
+        if n["id"] in node_ids:
+            raise HTTPException(status_code=400, detail=f"节点 id 重复或与现有节点冲突: {n['id']}")
+        node_ids.add(n["id"])
+    for e in edges:
+        try:
+            NeuralEdge(**e)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"连线数据非法: {e.get('id', '?')}: {exc}") from exc
+        if e.get("source") not in node_ids or e.get("target") not in node_ids:
+            raise HTTPException(status_code=400, detail=f"连线引用不存在的节点: {e.get('id', '?')}")
+    return nodes, edges
+
+
 @app.get("/api/v1/workflows/{workflow_id}/export")
 async def export_workflow(workflow_id: str):
     row = await engine.checkpoint_store.get_workflow_row(workflow_id)
@@ -444,35 +486,7 @@ async def import_workflow(workflow_id: str, payload: Dict[str, Any]):
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail="schema_version 非法") from exc
 
-    nodes = payload.get("nodes") or []
-    edges = payload.get("edges") or []
-    if not isinstance(nodes, list) or not isinstance(edges, list):
-        raise HTTPException(status_code=400, detail="nodes/edges 必须为数组")
-    if len(nodes) > int(os.getenv("AIGENT_MAX_NODES", "200")):
-        raise HTTPException(status_code=400, detail="节点数超过上限")
-    if len(edges) > int(os.getenv("AIGENT_MAX_EDGES", "500")):
-        raise HTTPException(status_code=400, detail="连线数超过上限")
-
-    # 类型白名单：注册表 handler key + 别名
-    allowed_types = set(engine.operator_registry._handlers) | set(_ALIASES)
-    node_ids = set()
-    for n in nodes:
-        try:
-            WorkflowNode(**n)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"节点数据非法: {n.get('id', '?')}: {exc}") from exc
-        if n.get("type") not in allowed_types:
-            raise HTTPException(status_code=400, detail=f"未知节点类型: {n.get('type')}")
-        if n["id"] in node_ids:
-            raise HTTPException(status_code=400, detail=f"节点 id 重复: {n['id']}")
-        node_ids.add(n["id"])
-    for e in edges:
-        try:
-            NeuralEdge(**e)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"连线数据非法: {e.get('id', '?')}: {exc}") from exc
-        if e.get("source") not in node_ids or e.get("target") not in node_ids:
-            raise HTTPException(status_code=400, detail=f"连线引用不存在的节点: {e.get('id', '?')}")
+    nodes, edges = _validate_topology_payload(payload.get("nodes"), payload.get("edges"))
     if engine.topology_has_cycle(nodes, edges):
         raise HTTPException(status_code=400, detail="拓扑含环，拒绝导入")
 
@@ -483,6 +497,123 @@ async def import_workflow(workflow_id: str, payload: Dict[str, Any]):
         await engine.reload_active_from_store()
     await engine.append_log(f"[Workflow] 已导入工作流 {workflow_id}（{len(nodes)} 节点 / {len(edges)} 连线）")
     return {"imported": workflow_id, "nodes": len(nodes), "edges": len(edges)}
+
+
+# ======================= T34：AI 生成节点（严格 JSON 增量 + 服务端校验后才应用） =======================
+class AISuggestRequest(BaseModel):
+    prompt: str
+
+
+def _extract_json_object(text: str) -> Dict[str, Any]:
+    """从 LLM 回复中稳健提取首个 JSON 对象（容忍 markdown 围栏/前后闲话）；失败抛 ValueError"""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\s*", "", t)
+        t = re.sub(r"\s*```$", "", t)
+    start = t.find("{")
+    end = t.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("回复中未找到 JSON 对象")
+    return json.loads(t[start : end + 1])
+
+
+async def _llm_transport_factory() -> httpx.AsyncBaseTransport:
+    """T12：AI 建议的 LLM 出站同样按已校验 IP 直连"""
+    allow_private = os.getenv("AIGENT_ALLOW_PRIVATE_LLM", "") == "1"
+    pinned = await resolve_and_pin_api_base(engine.llm_config.get("api_base", ""), allow_private=allow_private)
+    return IPPinnedTransport(pinned_ip=httpx.URL(pinned).host)
+
+
+@app.post("/api/v1/workflow/ai-suggest")
+async def ai_suggest_nodes(req: AISuggestRequest):
+    """自然语言 → LLM 输出严格 JSON 的节点+边增量 → 校验（类型/冲突/上限/环）→ 应用。
+    任何一步失败都不改动现有拓扑。"""
+    prompt = req.prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="prompt 不能为空")
+    api_key = (engine.llm_config.get("api_key") or "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="LLM_API_KEY 未配置，AI 生成节点不可用")
+
+    allowed_types = sorted(set(engine.operator_registry._handlers) | set(_ALIASES))
+    system_prompt = (
+        "你是工作流拓扑生成器。只输出一个严格 JSON 对象（无 markdown、无解释），结构："
+        '{"nodes": [{"id": "ai_xxx", "type": "<可用类型>", "title": "...", "subtitle": "...", "x": 100, "y": 200}], '
+        '"edges": [{"id": "ai_e1", "source": "ai_xxx", "target": "ai_yyy|现有节点id"}]}。'
+        f"可用 type 仅限：{allowed_types}。节点 id 必须以 ai_ 开头且不与现有节点冲突；不得成环。"
+    )
+    user_prompt = json.dumps(
+        {"prompt": prompt, "existing_node_ids": list(engine.nodes.keys())},
+        ensure_ascii=False,
+    )
+    llm = LLMClient()
+    result = await llm.chat_completion(
+        api_base=engine.llm_config.get("api_base", "https://api.openai.com/v1"),
+        api_key=api_key,
+        model=engine.llm_config.get("model", "gpt-4o-mini"),
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=1500,
+        transport_factory=_llm_transport_factory,
+    )
+    if not result["ok"]:
+        raise HTTPException(status_code=502, detail=f"LLM 调用失败: {result['error']}")
+    try:
+        suggestion = _extract_json_object(result["content"])
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"LLM 输出不是合法 JSON 增量: {exc}") from exc
+
+    raw_nodes = suggestion.get("nodes") or []
+    raw_edges = suggestion.get("edges") or []
+
+    def _normalize_ai_node(n: Any) -> Dict[str, Any]:
+        """LLM 只给 x/y 等简写字段：补齐 WorkflowNode 必填结构（position/theme_color/config_json）"""
+        n = dict(n)
+        pos = {"x": float(n.pop("x", 460.0)), "y": float(n.pop("y", 520.0))}
+        n.setdefault("position", pos)
+        n.setdefault("theme_color", "#38bdf8")
+        n.setdefault("config_json", {})
+        return n
+
+    raw_nodes = [_normalize_ai_node(n) for n in raw_nodes if isinstance(n, dict)]
+    raw_edges = [e for e in raw_edges if isinstance(e, dict)]
+    existing_ids = set(engine.nodes.keys())
+    existing_count = len(engine.nodes)
+    existing_edge_count = len(engine.edges)
+
+    nodes, edges = _validate_topology_payload(
+        raw_nodes, raw_edges, base_node_ids=existing_ids,
+        count_base_nodes=existing_count, count_base_edges=existing_edge_count,
+    )
+    # ai_ 前缀约束（防止 LLM 冒充现有节点 id 被上面的冲突检查漏过时的二次防线）
+    for n in nodes:
+        if not str(n.get("id", "")).startswith("ai_"):
+            raise HTTPException(status_code=400, detail="AI 建议的节点 id 必须以 ai_ 开头")
+    combined_nodes = [n.model_dump() for n in engine.nodes.values()] + nodes
+    combined_edges = [e.model_dump() for e in engine.edges] + edges
+    if engine.topology_has_cycle(combined_nodes, combined_edges):
+        raise HTTPException(status_code=400, detail="AI 建议会形成环路，已拒绝")
+
+    # 全部校验通过才应用
+    for n in nodes:
+        engine.nodes[n["id"]] = WorkflowNode(**n)
+    for e in edges:
+        engine.edges.append(
+            NeuralEdge(
+                id=e["id"],
+                source=e["source"],
+                target=e["target"],
+                latency_ms=int(e.get("latency_ms", 8)),
+                confidence_pct=float(e.get("confidence_pct", 99.2)),
+            )
+        )
+    await engine.save_topology()
+    await engine.append_log(f"[AI-Suggest] 已按建议新增 {len(nodes)} 节点 / {len(edges)} 连线")
+    snap = engine.get_snapshot()
+    await ws_manager.broadcast("workflow_snapshot", snap.model_dump())
+    return {"added_nodes": len(nodes), "added_edges": len(edges), "suggestion": suggestion}
 
 
 @app.post("/api/v1/workflow/control", response_model=WorkflowSnapshot)

@@ -442,6 +442,34 @@ export default function Workbench() {
     void refreshWorkflows();
   }, [refreshWorkflows]);
 
+  // T34：AI 生成节点——自然语言 → 服务端校验应用后刷新快照
+  const handleAiSuggest = useCallback(async () => {
+    const prompt = window.prompt('描述你想要的智能体流程（例如：先解析意图，再调用 HTTP 拉取数据）', '');
+    if (!prompt) return;
+    pushLog('[AI-Suggest] 正在生成节点建议...');
+    try {
+      const res = await fetch(`${API_BASE}/workflow/ai-suggest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+        body: JSON.stringify({ prompt }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        pushLog(`[Error] AI 建议被拒绝: ${body.detail ?? res.status}`);
+        return;
+      }
+      pushLog(`[AI-Suggest] 已新增 ${body.added_nodes} 节点 / ${body.added_edges} 连线`);
+      const snapRes = await fetch(`${API_BASE}/workflow`, { headers: adminHeaders() });
+      if (snapRes.ok) {
+        const snap = await snapRes.json();
+        setNodes(snap.nodes);
+        setEdges(snap.edges);
+      }
+    } catch (err) {
+      pushLog(`[Error] AI 建议失败: ${String(err)}`);
+    }
+  }, [pushLog]);
+
   const { linkingSourceId, handleNodeShiftClick, persistNodePosition } = useSynapseLinker(
     API_BASE,
     (newEdge) => {
@@ -1285,6 +1313,16 @@ export default function Workbench() {
               <Filter className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* T34：AI 生成节点入口（自然语言 → 服务端校验后的拓扑增量） */}
+          <button
+            type="button"
+            onClick={() => void handleAiSuggest()}
+            className="mt-2 w-full flex items-center justify-center space-x-1.5 px-2.5 py-2 rounded-md bg-indigo-950/60 hover:bg-indigo-900/70 border border-indigo-400/40 hover:border-indigo-300/70 transition"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+            <span className="text-xs text-indigo-200">AI 生成节点</span>
+          </button>
 
           <div className="space-y-3 flex-1">
             {SIDEBAR_GROUPS.map((group) => {
