@@ -1,10 +1,12 @@
 # backend/perfect_main.py
 import asyncio
+import hashlib
 import hmac
 import io
 import ipaddress
 import os
 import socket
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
@@ -14,6 +16,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from ast_validator import ASTValidationReport, FrontendASTValidator
 from models import ComponentItem, ControlRequest, NeuralEdge, WorkflowNode, WorkflowSnapshot
@@ -66,6 +70,79 @@ app = FastAPI(
     version="2.8.0-ultimate",
     lifespan=lifespan,
 )
+
+# ======================= T10 全局鉴权（P1 安全加固） =======================
+# 规则（生产化执行方案 T10）：
+#   - 配置 AIGENT_ADMIN_TOKEN 后：所有非 GET/HEAD 路由、/publish/*、/settings/* 必须携带
+#     X-Admin-Token（hmac.compare_digest 恒时比较）；
+#   - 其余 GET 只读接口是否免令牌由 AIGENT_PUBLIC_READ=1 决定（默认不放行，同样需要令牌）；
+#   - 未配置令牌 + 非回环来源 → 403（fail-closed，防止误暴露到局域网/公网）；
+#   - /publish/live-app 因 iframe 无法携带自定义请求头，改用短期签名 URL（HMAC-SHA256 + 过期时间）。
+# 注册顺序：本中间件先于 CORS 注册 → CORS 保持最外层，401/403 响应也会带上 CORS 头，前端可读。
+TRUSTED_LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}  # testclient = Starlette 测试客户端标记
+AUTH_EXEMPT_PATHS = set()  # 免鉴权路径（T20 健康检查加入 /healthz /readyz）
+
+
+def _admin_token() -> str:
+    return os.getenv("AIGENT_ADMIN_TOKEN", "").strip()
+
+
+def _sign_live_app(exp_epoch: int, token: str) -> str:
+    return hmac.new(token.encode("utf-8"), f"live-app:{exp_epoch}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _verify_live_app_signature(exp: str, sig: str, token: str) -> bool:
+    try:
+        exp_epoch = int(exp)
+    except (TypeError, ValueError):
+        return False
+    if exp_epoch < int(time.time()):
+        return False
+    return hmac.compare_digest(sig, _sign_live_app(exp_epoch, token))
+
+
+class AdminAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path in AUTH_EXEMPT_PATHS or request.method.upper() == "OPTIONS":
+            return await call_next(request)
+
+        token = _admin_token()
+        client = request.client
+        is_local = bool(client and client.host in TRUSTED_LOCAL_HOSTS)
+        method = request.method.upper()
+
+        if not token:
+            if not is_local:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "服务未配置 AIGENT_ADMIN_TOKEN，仅允许本机回环访问"},
+                )
+            return await call_next(request)
+
+        sensitive = path.startswith("/api/v1/publish/") or path.startswith("/api/v1/settings/")
+        needs_token = method not in ("GET", "HEAD") or sensitive
+        if not needs_token and os.getenv("AIGENT_PUBLIC_READ", "") != "1":
+            needs_token = True  # 未显式开公共读时，GET 同样需要令牌
+
+        if needs_token:
+            supplied = request.headers.get("X-Admin-Token", "")
+            ok = bool(supplied) and hmac.compare_digest(supplied, token)
+            if not ok and path == "/api/v1/publish/live-app":
+                # iframe 场景：短期签名 URL 兜底（exp + HMAC 签名）
+                ok = _verify_live_app_signature(
+                    request.query_params.get("exp", ""), request.query_params.get("sig", ""), token
+                )
+            if not ok:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "缺少或错误的管理令牌 (X-Admin-Token)"},
+                    headers={"WWW-Authenticate": "X-Admin-Token"},
+                )
+        return await call_next(request)
+
+
+app.add_middleware(AdminAuthMiddleware)
 
 # CORS 白名单：环境变量 CORS_ORIGINS（逗号分隔），默认仅放行本地开发端口。
 # 注意 allow_credentials=False 不得与通配符 "*" 同用。
@@ -413,6 +490,21 @@ async def view_published_live_app():
 </html>""",
         headers={"Content-Security-Policy": sandbox_csp},
     )
+
+
+@app.get("/api/v1/publish/live-app-url")
+async def mint_live_app_url(ttl_seconds: int = Query(default=300, ge=10, le=3600)):
+    """为 iframe/浏览器直开场景签发 live-app 短期签名 URL（该页面无法携带 X-Admin-Token 头）。
+    本路由自身受鉴权保护：仅持有令牌者可换取签名 URL。"""
+    token = _admin_token()
+    if not token:
+        return {"url": "/api/v1/publish/live-app", "signed": False, "expires_at": None}
+    exp = int(time.time()) + ttl_seconds
+    return {
+        "url": f"/api/v1/publish/live-app?exp={exp}&sig={_sign_live_app(exp, token)}",
+        "signed": True,
+        "expires_at": exp,
+    }
 
 
 @app.websocket("/ws/telemetry")

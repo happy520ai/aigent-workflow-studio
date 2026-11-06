@@ -1,5 +1,5 @@
 {
-  "seq": 106,
+  "seq": 107,
   "sessions": [
     {
       "id": "S-0001",
@@ -1779,6 +1779,26 @@
       "next_steps": [
         "用户把《生产化执行方案.md》交给 flash 模型从 T00 开始执行",
         "flash 遇拍板点 3–8（T34/T41/T61/T63/T70/T73）停下问用户"
+      ]
+    },
+    {
+      "id": "S-0107",
+      "date": "2026-11-06T17:36:35.976Z",
+      "author": "zcode",
+      "summary": "P0 完成：git init+.gitignore+首提（无 .db/.env）；基线 pytest 83 绿 + build 245K + verify 47:0 存 docs/baseline.txt；文档↔源码核对 49 条（47一致/2行号级漂移/0虚）存 docs/doc-drift.md。pm 任务 T-077 因纯文档不适用代码门取消，改由 git 留痕",
+      "files": [
+        ".gitignore",
+        "docs/baseline.txt",
+        "docs/doc-drift.md"
+      ],
+      "file_hashes": {
+        ".gitignore": "2476ecdc37f4b78d891d4ec82bee7d5ece376f13f67b771e5cdd0fd9d6a66cdd",
+        "docs/baseline.txt": "8f2763bbf9884c4e569ecc55f0b20906e2cd0af4cf33863977adc125b78fa1f6",
+        "docs/doc-drift.md": "98ef84276aef203b66de3cb86d1e7bea7248196fd7df40d066d85cb149129ec0"
+      },
+      "next_steps": [
+        "P1-T10 全局鉴权 require_auth + live-app 签名URL",
+        "P1 依次 T11-T16"
       ]
     }
   ]

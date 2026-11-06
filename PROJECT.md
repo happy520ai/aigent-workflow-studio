@@ -1,7 +1,7 @@
 # 神经元工作流平台 · 万象台 — 项目仪表盘
 
 > ⚠️ 本文件由 pm-mcp 自动生成（勿手改）。状态账本写入后自动刷新；手动刷新用 regenerate_dashboard。
-> 生成时间: 2026-11-06T17:25:29.725Z
+> 生成时间: 2026-11-06T17:36:36.002Z
 > 神经元式智能体工作流可视化平台：以"赛博蜘蛛 HUD + 道家哲学叙事"为设计语言的单文件交互原型，持续迭代至电影级观感
 
 ## 🗺️ 路线图
@@ -9,10 +9,16 @@
 ```mermaid
 flowchart LR
   M30["M30 v2.8 修复与加固：前后端接线 + 安全 + 持久化 + 测试可信"]:::done
+  M31["M31 生产化 P0–P2：版本控制 + 安全加固 + 后端可靠性（关口A）"]:::active
+  M32["M32 生产化 P3–P5：核心能力 + 前端工程化 + 测试体系"]:::planned
+  M33["M33 生产化 P6–P7：部署运维 + 收尾（v3.0.0）"]:::planned
   M27["M27 后端服务 · AIGENT-WORKFLOW STUDIO v2.8 FastAPI"]:::done
   M28["M28 终极版 · 动态拓扑后端 + React 工作台（1:1）"]:::done
   M29["M29 万象台 · 动效引擎 1:1（动画效果.txt 权威落地）"]:::done
-  M30 --> M27
+  M30 --> M31
+  M31 --> M32
+  M32 --> M33
+  M33 --> M27
   M27 --> M28
   M28 --> M29
   classDef done fill:#9ca3af,stroke:#6b7280
@@ -22,6 +28,9 @@ flowchart LR
 ```
 
 ✅ [██████████] 100% M30 v2.8 修复与加固：前后端接线 + 安全 + 持久化 + 测试可信（1/1）
+▶ [░░░░░░░░░░] 0% M31 生产化 P0–P2：版本控制 + 安全加固 + 后端可靠性（关口A）（0/2）
+○ [░░░░░░░░░░] 0% M32 生产化 P3–P5：核心能力 + 前端工程化 + 测试体系（0/3）
+○ [░░░░░░░░░░] 0% M33 生产化 P6–P7：部署运维 + 收尾（v3.0.0）（0/2）
 ✅ [██████████] 100% M27 后端服务 · AIGENT-WORKFLOW STUDIO v2.8 FastAPI（1/1）
 ✅ [██████████] 100% M28 终极版 · 动态拓扑后端 + React 工作台（1:1）（1/1）
 ✅ [██████████] 100% M29 万象台 · 动效引擎 1:1（动画效果.txt 权威落地）（1/1）
@@ -47,7 +56,7 @@ flowchart LR
 - ⚠️ 尚未登记结构化模块；文件级账本可用，但依赖/owner/接口边界尚未启用。
 
 ## 📋 任务
-- 总览: done 75 · cancelled 1
+- 总览: done 75 · cancelled 2 · backlog 7
 
 ## 🧩 功能清单
 ### 总控HUD
@@ -119,6 +128,8 @@ flowchart LR
 - （暂无）
 
 ## 📜 最近会话
+- 2026-11-06 [zcode] P0 完成：git init+.gitignore+首提（无 .db/.env）；基线 pytest 83 绿 + build 245K + verify 47:0 存 docs/baseline.txt；文档↔源码核对 49 条（47一致/2行号级漂移/0虚）存 docs/doc-drift.md。pm 任务 T-077 因纯文档不适用代码门取消，改由 git 留痕
+  - 改动: .gitignore, docs/baseline.txt, docs/doc-drift.md
 - 2026-11-06 [zcode] 用户拍板 2 项并标注进《生产化执行方案.md》：①同意 git init（T00 去⚠️）、②范围按默认（单租户自托管/不含 K8s·OAuth/仅 3 类真实算子）。执行者定为 flash 模型，本会话仅交接不动源码。剩余 6 个拍板点（T34/T41/T61/T63/T70/T73）由执行模型现场问。
   - 改动: 生产化执行方案.md
 - 2026-11-06 [zcode] 落盘《生产化执行方案.md》（供 flash 模型逐步执行）：P0 基线核对 → P1 安全加固 → P2 可靠性 → P3 核心能力 → P4 前端工程化 → P5 测试体系 → P6 部署运维 → P7 收尾，共 45 任务；含 7 条执行铁律、8 个待用户拍板点、关口A（P2 后）。纯方案文档，未改任何源码。
@@ -127,8 +138,6 @@ flowchart LR
   - 改动: 项目源码与架构文档.md
 - 2026-11-06 [zcode] 新增并可重复运行真实推理测试脚本 scripts/real_inference_test.py（9 组 17 断言，全 HTTP 驱动真实服务，结束自动还原配置与拓扑）：T1 配置/不回显密钥、T2 改配置驱动真实生成（2111→1291 证明 config 真进提示词）、T3 输出质量（无截断/闭合完整/无危险标签）、T4 agent_codegen 真实外呼（latency 16782ms）、T5 双 LLM 节点并发、T6 四轮稳定（窗口内日志判定）、T7 错误密钥降级+恢复、T8 SSRF 400、T9 切换 generalv3.5。首轮 14/17 暴露真实产品缺陷：httpx timeout=10s 小于星火 4.0Ultra 生成耗时(~10-17s)，导致 ReadTimeout 被静默降级为内置模板——T4 的 10.4s latency 实为超时假象；将超时提至 60s 并重建镜像后 17/17 全过，沙盒为 1565-2111 字符真实生成内容。回归：pytest 83 全绿、verify 47:0、build 零错误。
   - 改动: backend/scripts/real_inference_test.py, backend/perfect_engine.py
-- 2026-11-06 [zcode] 接入讯飞星火真实推理：在 ZCode 模型池清单中定位 xfyun-pool/spark-x2.6（讯飞星火池），密钥取自 gateway_provider_keys.env 的 XUNFEI_SPARK_API_KEY；经官方 OpenAI 兼容端点 spark-api-open.xf-yun.com 实测三模型可用（4.0Ultra/generalv3.5/lite 均真实返回，max-32k 账号无权限），选旗舰 4.0Ultra。接入运行中的容器：PUT /settings/llm 热更新即时生效（守卫 SSRF 校验通过公网域名），随后持久化到项目根 .env（compose 注入，key 不入镜像不落日志）。过程中发现 max_tokens=220 导致星火输出被截断（HTML 460 字符戛然而止），提为 1024 后沙盒 1166 字符完整闭合；pytest 83 全绿回归。沙盒内已是星火 4.0Ultra 生成的风格化 HTML（非内置模板），浏览器截图存 t13。
-  - 改动: backend/perfect_engine.py, .env, docker-compose.yml, gui-test-screenshots/t13_docker_spark40ultra_sandbox.png
 
 ---
 stack: HTML, JavaScript, Canvas 2D, 手写3D投影 · modules: 可视化原型, 总控HUD, 模拟数据引擎 · exposure: local · license: 未声明

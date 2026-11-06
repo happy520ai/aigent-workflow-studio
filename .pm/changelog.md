@@ -2,6 +2,14 @@
 
 ## 2026-11-06 — zcode
 
+P0 完成：git init+.gitignore+首提（无 .db/.env）；基线 pytest 83 绿 + build 245K + verify 47:0 存 docs/baseline.txt；文档↔源码核对 49 条（47一致/2行号级漂移/0虚）存 docs/doc-drift.md。pm 任务 T-077 因纯文档不适用代码门取消，改由 git 留痕
+
+改动文件（3）: .gitignore, docs/baseline.txt, docs/doc-drift.md
+
+下一步: P1-T10 全局鉴权 require_auth + live-app 签名URL；P1 依次 T11-T16
+
+## 2026-11-06 — zcode
+
 用户拍板 2 项并标注进《生产化执行方案.md》：①同意 git init（T00 去⚠️）、②范围按默认（单租户自托管/不含 K8s·OAuth/仅 3 类真实算子）。执行者定为 flash 模型，本会话仅交接不动源码。剩余 6 个拍板点（T34/T41/T61/T63/T70/T73）由执行模型现场问。
 
 改动文件（1）: 生产化执行方案.md
