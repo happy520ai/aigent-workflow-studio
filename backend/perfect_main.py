@@ -391,7 +391,8 @@ async def require_admin(request: Request) -> None:
 def validate_llm_api_base(url: str) -> str:
     """SSRF 校验：仅 http/https + 有主机名；可选主机白名单；默认拒绝解析到内网/保留地址的 api_base。
 
-    注意：DNS 解析与实际请求之间存在时间差，无法完全防 DNS rebinding。
+    T12 后实际防 rebinding 的位置在 perfect_engine.resolve_and_pin_api_base：每次真实 LLM
+    请求前重新解析复检并按校验通过的 IP 直连（保留 Host/SNI），设置校验与本函数仅作前置快筛。
     """
     parsed_url = url.strip()
     if not (parsed_url.startswith("http://") or parsed_url.startswith("https://")):
