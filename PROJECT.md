@@ -1,7 +1,7 @@
 # 神经元工作流平台 · 万象台 — 项目仪表盘
 
 > ⚠️ 本文件由 pm-mcp 自动生成（勿手改）。状态账本写入后自动刷新；手动刷新用 regenerate_dashboard。
-> 生成时间: 2026-11-06T19:31:49.024Z
+> 生成时间: 2026-11-06T19:51:50.345Z
 > 神经元式智能体工作流可视化平台：以"赛博蜘蛛 HUD + 道家哲学叙事"为设计语言的单文件交互原型，持续迭代至电影级观感
 
 ## 🗺️ 路线图
@@ -29,7 +29,7 @@ flowchart LR
 
 ✅ [██████████] 100% M30 v2.8 修复与加固：前后端接线 + 安全 + 持久化 + 测试可信（1/1）
 ✅ [██████████] 100% M31 生产化 P0–P2：版本控制 + 安全加固 + 后端可靠性（关口A）（2/2）
-○ [███░░░░░░░] 33% M32 生产化 P3–P5：核心能力 + 前端工程化 + 测试体系（1/3）
+○ [███████░░░] 67% M32 生产化 P3–P5：核心能力 + 前端工程化 + 测试体系（2/3）
 ○ [░░░░░░░░░░] 0% M33 生产化 P6–P7：部署运维 + 收尾（v3.0.0）（0/2）
 ✅ [██████████] 100% M27 后端服务 · AIGENT-WORKFLOW STUDIO v2.8 FastAPI（1/1）
 ✅ [██████████] 100% M28 终极版 · 动态拓扑后端 + React 工作台（1:1）（1/1）
@@ -41,14 +41,14 @@ flowchart LR
 ## 🩺 健康摘要
 | 账本 | 状态 |
 |---|---|
-| 漂移（防幻觉） | ⚠️ 124 项（功能入口文件或 done 任务关联文件缺失） |
+| 漂移（防幻觉） | ⚠️ 126 项（功能入口文件或 done 任务关联文件缺失） |
 | 债务（反挤出） | ✅ 无未清债务 |
 | churn（变更率） | ⚠️ 热点 neuron-workflow-v15.html(71), test/verify-v15.js(71), package.json(19) |
 | 安全 | ✅ 无未处理发现 |
 | 调试知识 | 5 条记录 |
 | 测试背书 | 57/58 个功能带测试 |
 | 语义治理 | 0 模块 / 0 接口 / 0 仓库 |
-| 质量矩阵 | ✅ 2026-11-06 19:31（命令 2/2；证据 execution_only） |
+| 质量矩阵 | ✅ 2026-11-06 19:51（命令 2/2；证据 execution_only） |
 | 标准化验收 | ⚠️ 尚无正式评价报告 |
 | 自动编排 | — disabled（自动编排已关闭（set_orchestrator））· 并发 3 · 轮次 0/40 |
 
@@ -56,7 +56,7 @@ flowchart LR
 - ⚠️ 尚未登记结构化模块；文件级账本可用，但依赖/owner/接口边界尚未启用。
 
 ## 📋 任务
-- 总览: done 78 · cancelled 2 · backlog 4
+- 总览: done 79 · cancelled 2 · backlog 3
 
 ## 🧩 功能清单
 ### 总控HUD
@@ -115,7 +115,7 @@ flowchart LR
 - ⚠️ 漂移 F-052 神经智能体工作流平台 · 仿图复刻 — 仿参考图复刻的神经智能体工作流平台：神经元背景+组件树+工作流图+雷达/JSON/日志三面板，agent-flow-platform.html。
 - ⚠️ 漂移 F-053 AIGENT-WORKFLOW STUDIO v2.8 · 完整还原 — AIGENT-WORKFLOW STUDIO v2.8 完整还原：五层布局+六组组件库（可拖拽）+五核心节点+三层发光神经突触连线+神经元动效+雷达/JSON/
 - ○ F-054 神经智能体工作流平台 · 仿图复刻 — 第一版仿图，已按用户要求删除，由 AIGENT-WORKFLOW STUDIO v2.8 取代。
-- ✅ F-058 动效引擎 1:1（生物发光神经元/微组件/WebGL/小地图/声效） — 按《动画效果.txt》模板 1:1 落地的前端动效引擎：BioluminescentCanvas 加色混合神经元画布、NodeMicroWidgets 四微组件
+- ⚠️ 漂移 F-058 动效引擎 1:1（生物发光神经元/微组件/WebGL/小地图/声效） — 按《动画效果.txt》模板 1:1 落地的前端动效引擎：BioluminescentCanvas 加色混合神经元画布、NodeMicroWidgets 四微组件
 ### backend
 - ✅ F-055 后端 FastAPI 服务 · 神经元 DAG 引擎与实时遥测（v2.8） — AIGENT-WORKFLOW STUDIO v2.8 后端：Pydantic v2 全量数据契约；异步神经元 DAG 调度引擎（Run/Pause/Debug
 - ✅ F-056 终极版 · 动态拓扑后端 + React 工作台（1:1） — 按用户终极版文档 1:1 交付：PerfectNeuralEngine（Kahn 动态拓扑分层调度 + SQLite 时间旅行断点 + 跨节点共享记忆总线 + 
@@ -128,6 +128,8 @@ flowchart LR
 - （暂无）
 
 ## 📜 最近会话
+- 2026-11-06 [?] T-081 生产化 P4：前端工程化（T40-T46）：P4 七任务完成：T40 Workbench 1722→~880 行（types/hooks×2/组件×5 原样迁出，代际锁保留，verify 锚点 43/47 待 T54 更新）；T41 删 7 个零引用遗留+noUnused 双开；T42 ErrorBoundary+全局 toast+WS 重连状态条；T43 401 自动弹设置抽屉+令牌变更重建 WS；T44 撤销/重做命令栈+框选多删+中键平移+Ctrl 滚轮缩放+Filter 删除；T45 focus-visible+reduced-motion 三层关停+aria 补全+窄屏浮层抽屉（Lighthouse 留 T51）；T46 sourcemap=0+分包 3 块 dist 269K。每次 build 通过；坑：npm 管道吞退出码曾致未验证提交，已补验
+  - 改动: frontend/src/Workbench.tsx, frontend/src/types.ts, frontend/src/components/NodeCard.tsx, frontend/src/components/ComponentLibrary.tsx, frontend/src/components/MiniDrawer.tsx, frontend/src/components/TerminalLog.tsx, frontend/src/components/HeaderMiniOscilloscope.tsx, frontend/src/components/Toast.tsx 等 18 个
 - 2026-11-06 [?] T-080 生产化 P3：核心能力补全（T30-T35）：P3 六任务完成：T30 真实算子框架（net_guard 抽出 T12 工具；llm_generic/http_request/logic_transform 真实实现+mode 如实标注+组件库 12→14 已披露）；T31 SSE 流式 node_stream + 前端实时面板；T32 多工作流（schema v4、WorkflowState 属性委托零改动隔离、切换器，独立分支合并）；T33 JSON 导入导出（schema v1+类型白名单+环检测，5 拒绝路径）；T34 ai-suggest（严格 JSON 增量+恶意输出全拒+侧栏入口，测试全 mock 不耗额度）；T35 Kahn 自动布局（纯函数+批量端点+按钮）。坑记录：从仓库根跑 pytest 会误收 backend/test_workflow_e2e.py 并污染引擎库指向——必须 cd backend。suite 194 绿 + build 217K
   - 改动: backend/operator_registry.py, backend/net_guard.py, backend/llm_client.py, backend/perfect_engine.py, backend/perfect_main.py, backend/tests/test_real_operators.py, backend/tests/test_streaming.py, backend/tests/test_multi_workflow.py 等 15 个
 - 2026-11-06 [?] T-079 生产化 P2：后端可靠性与可观测（T20-T27）：P2 八任务全部完成：T20 healthz/readyz（免鉴权，SQLite+双循环+心跳<5s）；T21 WAL/NORMAL/busy_timeout+schema_version 显式迁移 v1→v3+写锁（T26 runs 表随 v3）；T22 obs_logging JSON 日志+X-Request-ID 中间件+SecretFilter（sk-/Bearer/X-Admin-Token/?token=+精确值兜底）；T23 /metrics Prometheus（节点/LLM/轮次直方图/WS gauge，敏感鉴权面）；T24 llm_client.py（重试退避抖动 429/5xx/超时、信号量、可配超时、degraded 徽章前后端打通）；T25 start/stop 生命周期加固（cancelling 重建+轮询等待，根治快速 lifespan 双循环全灭 flake）+503 单测；T26 runs 持久化重启不丢；T27 ECG=真实 DAG 轮延迟（归一化，前端示波器吃真实序列）。关口A：pytest 155 绿 + build 212K + verify 47:0 + 8020 实机冒烟（healthz/readyz/metrics 鉴权/安全头/JSON 日志）全过
@@ -136,8 +138,6 @@ flowchart LR
   - 改动: backend/perfect_main.py, backend/perfect_engine.py, backend/requirements.txt, backend/requirements-dev.txt, backend/static/vendor/tailwindcss-play.js, frontend/nginx.conf, frontend/src/config.ts, frontend/src/Workbench.tsx 等 15 个
 - 2026-11-06 [zcode] P0 完成：git init+.gitignore+首提（无 .db/.env）；基线 pytest 83 绿 + build 245K + verify 47:0 存 docs/baseline.txt；文档↔源码核对 49 条（47一致/2行号级漂移/0虚）存 docs/doc-drift.md。pm 任务 T-077 因纯文档不适用代码门取消，改由 git 留痕
   - 改动: .gitignore, docs/baseline.txt, docs/doc-drift.md
-- 2026-11-06 [zcode] 用户拍板 2 项并标注进《生产化执行方案.md》：①同意 git init（T00 去⚠️）、②范围按默认（单租户自托管/不含 K8s·OAuth/仅 3 类真实算子）。执行者定为 flash 模型，本会话仅交接不动源码。剩余 6 个拍板点（T34/T41/T61/T63/T70/T73）由执行模型现场问。
-  - 改动: 生产化执行方案.md
 
 ---
 stack: HTML, JavaScript, Canvas 2D, 手写3D投影 · modules: 可视化原型, 总控HUD, 模拟数据引擎 · exposure: local · license: 未声明

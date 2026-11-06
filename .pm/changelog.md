@@ -2,6 +2,12 @@
 
 ## 2026-11-06 — 未知
 
+T-081 生产化 P4：前端工程化（T40-T46）：P4 七任务完成：T40 Workbench 1722→~880 行（types/hooks×2/组件×5 原样迁出，代际锁保留，verify 锚点 43/47 待 T54 更新）；T41 删 7 个零引用遗留+noUnused 双开；T42 ErrorBoundary+全局 toast+WS 重连状态条；T43 401 自动弹设置抽屉+令牌变更重建 WS；T44 撤销/重做命令栈+框选多删+中键平移+Ctrl 滚轮缩放+Filter 删除；T45 focus-visible+reduced-motion 三层关停+aria 补全+窄屏浮层抽屉（Lighthouse 留 T51）；T46 sourcemap=0+分包 3 块 dist 269K。每次 build 通过；坑：npm 管道吞退出码曾致未验证提交，已补验
+
+改动文件（18）: frontend/src/Workbench.tsx, frontend/src/types.ts, frontend/src/components/NodeCard.tsx, frontend/src/components/ComponentLibrary.tsx, frontend/src/components/MiniDrawer.tsx, frontend/src/components/TerminalLog.tsx, frontend/src/components/HeaderMiniOscilloscope.tsx, frontend/src/components/Toast.tsx, frontend/src/components/ErrorBoundary.tsx, frontend/src/hooks/useWorkflowSocket.ts, frontend/src/hooks/useWorkflowApi.ts, frontend/src/hooks/usePrefersReducedMotion.ts, frontend/src/main.tsx, frontend/src/config.ts, frontend/vite.config.ts, frontend/tsconfig.json, frontend/src/index.css, frontend/src/components/BioluminescentCanvas.tsx
+
+## 2026-11-06 — 未知
+
 T-080 生产化 P3：核心能力补全（T30-T35）：P3 六任务完成：T30 真实算子框架（net_guard 抽出 T12 工具；llm_generic/http_request/logic_transform 真实实现+mode 如实标注+组件库 12→14 已披露）；T31 SSE 流式 node_stream + 前端实时面板；T32 多工作流（schema v4、WorkflowState 属性委托零改动隔离、切换器，独立分支合并）；T33 JSON 导入导出（schema v1+类型白名单+环检测，5 拒绝路径）；T34 ai-suggest（严格 JSON 增量+恶意输出全拒+侧栏入口，测试全 mock 不耗额度）；T35 Kahn 自动布局（纯函数+批量端点+按钮）。坑记录：从仓库根跑 pytest 会误收 backend/test_workflow_e2e.py 并污染引擎库指向——必须 cd backend。suite 194 绿 + build 217K
 
 改动文件（15）: backend/operator_registry.py, backend/net_guard.py, backend/llm_client.py, backend/perfect_engine.py, backend/perfect_main.py, backend/tests/test_real_operators.py, backend/tests/test_streaming.py, backend/tests/test_multi_workflow.py, backend/tests/test_import_export.py, backend/tests/test_ai_suggest.py, backend/tests/test_batch_positions.py, frontend/src/Workbench.tsx, frontend/src/config.ts, frontend/src/utils/layout.ts, frontend/src/components/NodeMicroWidgets.tsx

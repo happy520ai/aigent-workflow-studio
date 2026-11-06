@@ -1,5 +1,5 @@
 {
-  "seq": 110,
+  "seq": 111,
   "sessions": [
     {
       "id": "S-0001",
@@ -1928,6 +1928,53 @@
         "frontend/src/config.ts": "38fe1043ad7d6cc50c4a1903ed3575c5efa3e7dbd194aa549a9c3f7628f7233b",
         "frontend/src/utils/layout.ts": "5af63892321961a28eb8a5f859ed1d3f5457bfca055ef720f5c9172982c79c85",
         "frontend/src/components/NodeMicroWidgets.tsx": "d4f95d095d17540626060161794a40bcd1874c0ea97c86dbe5434c72c7058ccc"
+      },
+      "next_steps": []
+    },
+    {
+      "id": "S-0111",
+      "date": "2026-11-06T19:51:50.310Z",
+      "author": "",
+      "summary": "T-081 生产化 P4：前端工程化（T40-T46）：P4 七任务完成：T40 Workbench 1722→~880 行（types/hooks×2/组件×5 原样迁出，代际锁保留，verify 锚点 43/47 待 T54 更新）；T41 删 7 个零引用遗留+noUnused 双开；T42 ErrorBoundary+全局 toast+WS 重连状态条；T43 401 自动弹设置抽屉+令牌变更重建 WS；T44 撤销/重做命令栈+框选多删+中键平移+Ctrl 滚轮缩放+Filter 删除；T45 focus-visible+reduced-motion 三层关停+aria 补全+窄屏浮层抽屉（Lighthouse 留 T51）；T46 sourcemap=0+分包 3 块 dist 269K。每次 build 通过；坑：npm 管道吞退出码曾致未验证提交，已补验",
+      "files": [
+        "frontend/src/Workbench.tsx",
+        "frontend/src/types.ts",
+        "frontend/src/components/NodeCard.tsx",
+        "frontend/src/components/ComponentLibrary.tsx",
+        "frontend/src/components/MiniDrawer.tsx",
+        "frontend/src/components/TerminalLog.tsx",
+        "frontend/src/components/HeaderMiniOscilloscope.tsx",
+        "frontend/src/components/Toast.tsx",
+        "frontend/src/components/ErrorBoundary.tsx",
+        "frontend/src/hooks/useWorkflowSocket.ts",
+        "frontend/src/hooks/useWorkflowApi.ts",
+        "frontend/src/hooks/usePrefersReducedMotion.ts",
+        "frontend/src/main.tsx",
+        "frontend/src/config.ts",
+        "frontend/vite.config.ts",
+        "frontend/tsconfig.json",
+        "frontend/src/index.css",
+        "frontend/src/components/BioluminescentCanvas.tsx"
+      ],
+      "file_hashes": {
+        "frontend/src/Workbench.tsx": "dced3da09b3c85de473c8c3266d3bb2844ece2f0a534059323366a95d48a1f0f",
+        "frontend/src/types.ts": "f693b57b106d2c759aea7dac76ef1a3ee80c604a73b7a8a3f6df6bf86d30df7f",
+        "frontend/src/components/NodeCard.tsx": "f89b9fadfb48f60985280044e94c16ef5701c55832f5cfc4118b4e8fb562f51d",
+        "frontend/src/components/ComponentLibrary.tsx": "9bbdd0ebb20ccb01097b624b296c7e18f7135b1722c5071308f1bd410ebf1335",
+        "frontend/src/components/MiniDrawer.tsx": "fcf4e874ef5c2694ab68585e27e0b58930f5c481860e455100ab4f1f8336dde8",
+        "frontend/src/components/TerminalLog.tsx": "1e6fd27e8f5ba99ea28953caa64407675333a671ece4f21c28ff045a33712d66",
+        "frontend/src/components/HeaderMiniOscilloscope.tsx": "66580b181d0d3b28179e4b136e9889ea1ba2dc37a3a654874ab46827cbeefefa",
+        "frontend/src/components/Toast.tsx": "f9b177484c498af595fa6cb6e31624c491c327793ed3fd8241deb431b0c176e0",
+        "frontend/src/components/ErrorBoundary.tsx": "0c55b5e8d072bf238ccdbcbd3cace66513eec15be8af387ba1d9abd50221af19",
+        "frontend/src/hooks/useWorkflowSocket.ts": "ca557a2eec69f79c4b6aec655a69f296418c0a8d60964cc90f4636edde0a814c",
+        "frontend/src/hooks/useWorkflowApi.ts": "057935b99a5093e117a06883bb918711a33ce53695fc8f61953962ead231ccc6",
+        "frontend/src/hooks/usePrefersReducedMotion.ts": "3bede814fd1ad66386fdc60f6ae07302d69f7fa85c17c976cabbfce86d292b05",
+        "frontend/src/main.tsx": "ea2f35f2de2b0f134c2fd00f3b8a351d471be9ef5782761787041caaed196002",
+        "frontend/src/config.ts": "38fe1043ad7d6cc50c4a1903ed3575c5efa3e7dbd194aa549a9c3f7628f7233b",
+        "frontend/vite.config.ts": "b9fb02fdf28403b0f44bf23e86857a279e73a18ea581531f099b713ada7496ba",
+        "frontend/tsconfig.json": "6e5c1be4553dfefa138f36a71e7b01ab1fe919e3a6efacfbff9eadf6eaf2c14b",
+        "frontend/src/index.css": "bd85d95cfdba2c98a1782d0b81106d3e43694972a390c565940b9f62bfc30829",
+        "frontend/src/components/BioluminescentCanvas.tsx": "6db48e18460cf8c4ac580199897ae64fe956dc42ad4b8ad570d4109a99446817"
       },
       "next_steps": []
     }
