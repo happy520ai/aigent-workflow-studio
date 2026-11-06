@@ -2,6 +2,12 @@
 
 ## 2026-11-06 — 未知
 
+T-079 生产化 P2：后端可靠性与可观测（T20-T27）：P2 八任务全部完成：T20 healthz/readyz（免鉴权，SQLite+双循环+心跳<5s）；T21 WAL/NORMAL/busy_timeout+schema_version 显式迁移 v1→v3+写锁（T26 runs 表随 v3）；T22 obs_logging JSON 日志+X-Request-ID 中间件+SecretFilter（sk-/Bearer/X-Admin-Token/?token=+精确值兜底）；T23 /metrics Prometheus（节点/LLM/轮次直方图/WS gauge，敏感鉴权面）；T24 llm_client.py（重试退避抖动 429/5xx/超时、信号量、可配超时、degraded 徽章前后端打通）；T25 start/stop 生命周期加固（cancelling 重建+轮询等待，根治快速 lifespan 双循环全灭 flake）+503 单测；T26 runs 持久化重启不丢；T27 ECG=真实 DAG 轮延迟（归一化，前端示波器吃真实序列）。关口A：pytest 155 绿 + build 212K + verify 47:0 + 8020 实机冒烟（healthz/readyz/metrics 鉴权/安全头/JSON 日志）全过
+
+改动文件（19）: backend/perfect_main.py, backend/perfect_engine.py, backend/llm_client.py, backend/metrics.py, backend/obs_logging.py, backend/models.py, backend/tests/test_health.py, backend/tests/test_sqlite_robust.py, backend/tests/test_logging_observability.py, backend/tests/test_metrics.py, backend/tests/test_llm_client.py, backend/tests/test_lifecycle.py, backend/tests/test_runs_persistence.py, backend/tests/test_telemetry_real.py, backend/tests/test_lifecycle.py, backend/tests/test_error_isolation.py, backend/tests/test_auth_all_routes.py, frontend/src/components/NodeMicroWidgets.tsx, frontend/src/Workbench.tsx
+
+## 2026-11-06 — 未知
+
 T-078 生产化 P1：安全加固（T10-T16）：P1 六任务全部完成并逐任务提交：T10 全局鉴权中间件+live-app签名URL（7测）、T11 WS握手鉴权 Origin/token 4401/4403（6测）+前端buildWsUrl、T12 DNS rebinding 请求时IP固定（6测）、T13 令牌桶限流+体积/数量上限（6测）、T14 安全响应头+nginx CSP（3测）、T15 Tailwind本地化去CDN去unsafe-inline（2新增）、T16 pip-audit升级fastapi0.162/starlette1.10清零14漏洞+audit_security 9项全处置（报告 docs/security-scan.md 不入files因docs目录无测试覆盖）。关口：pytest 113绿+build OK+verify 47:0
 
 改动文件（15）: backend/perfect_main.py, backend/perfect_engine.py, backend/requirements.txt, backend/requirements-dev.txt, backend/static/vendor/tailwindcss-play.js, frontend/nginx.conf, frontend/src/config.ts, frontend/src/Workbench.tsx, backend/tests/test_auth_all_routes.py, backend/tests/test_ws_auth.py, backend/tests/test_dns_rebinding.py, backend/tests/test_limits.py, backend/tests/test_security_headers.py, backend/tests/test_live_app_csp.py, backend/tests/conftest.py

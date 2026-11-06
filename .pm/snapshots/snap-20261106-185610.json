@@ -1,0 +1,206 @@
+{
+  "taken_at": "2026-11-06T18:56:10.092Z",
+  "file": ".pm/snapshots/snap-20261106-185610.json",
+  "total_files": 108,
+  "total_loc": 27725,
+  "test_files": 31,
+  "skip_markers": 0,
+  "deps": [],
+  "by_ext": [
+    {
+      "ext": "md",
+      "files": 10,
+      "loc": 8328
+    },
+    {
+      "ext": "txt",
+      "files": 5,
+      "loc": 7294
+    },
+    {
+      "ext": "py",
+      "files": 46,
+      "loc": 6790
+    },
+    {
+      "ext": "tsx",
+      "files": 9,
+      "loc": 3253
+    },
+    {
+      "ext": "html",
+      "files": 3,
+      "loc": 1053
+    },
+    {
+      "ext": "ts",
+      "files": 6,
+      "loc": 337
+    },
+    {
+      "ext": "(无扩展名)",
+      "files": 9,
+      "loc": 233
+    },
+    {
+      "ext": "js",
+      "files": 4,
+      "loc": 180
+    },
+    {
+      "ext": "yml",
+      "files": 1,
+      "loc": 54
+    },
+    {
+      "ext": "css",
+      "files": 1,
+      "loc": 52
+    },
+    {
+      "ext": "json",
+      "files": 2,
+      "loc": 49
+    },
+    {
+      "ext": "conf",
+      "files": 1,
+      "loc": 43
+    },
+    {
+      "ext": "log",
+      "files": 3,
+      "loc": 24
+    },
+    {
+      "ext": "sh",
+      "files": 1,
+      "loc": 19
+    },
+    {
+      "ext": "ini",
+      "files": 1,
+      "loc": 7
+    },
+    {
+      "ext": "tag",
+      "files": 1,
+      "loc": 5
+    },
+    {
+      "ext": "local",
+      "files": 1,
+      "loc": 4
+    },
+    {
+      "ext": "db-wal",
+      "files": 1,
+      "loc": 0
+    },
+    {
+      "ext": "db-shm",
+      "files": 1,
+      "loc": 0
+    },
+    {
+      "ext": "db",
+      "files": 1,
+      "loc": 0
+    }
+  ],
+  "top_dirs": [
+    {
+      "dir": ".",
+      "files": 19,
+      "loc": 16046
+    },
+    {
+      "dir": "frontend/src",
+      "files": 15,
+      "loc": 3634
+    },
+    {
+      "dir": "backend",
+      "files": 20,
+      "loc": 3566
+    },
+    {
+      "dir": "backend/tests",
+      "files": 30,
+      "loc": 2840
+    },
+    {
+      "dir": "frontend",
+      "files": 12,
+      "loc": 698
+    },
+    {
+      "dir": "backend/scripts",
+      "files": 2,
+      "loc": 404
+    },
+    {
+      "dir": "docs",
+      "files": 3,
+      "loc": 193
+    },
+    {
+      "dir": "backend/.pytest_cache",
+      "files": 5,
+      "loc": 180
+    },
+    {
+      "dir": "backend/static",
+      "files": 1,
+      "loc": 84
+    },
+    {
+      "dir": "test",
+      "files": 1,
+      "loc": 80
+    }
+  ],
+  "largest_files": [
+    {
+      "path": "智能体工作台完整合并文档.md",
+      "loc": 6994
+    },
+    {
+      "path": "源码合集.txt",
+      "loc": 6834
+    },
+    {
+      "path": "frontend/src/Workbench.tsx",
+      "loc": 1538
+    },
+    {
+      "path": "backend/perfect_engine.py",
+      "loc": 1198
+    },
+    {
+      "path": "项目源码与架构文档.md",
+      "loc": 799
+    },
+    {
+      "path": "backend/perfect_main.py",
+      "loc": 731
+    },
+    {
+      "path": "frontend/standalone-preview.html",
+      "loc": 544
+    },
+    {
+      "path": "frontend/src/components/BioluminescentCanvas.tsx",
+      "loc": 535
+    },
+    {
+      "path": "代码结构图.html",
+      "loc": 496
+    },
+    {
+      "path": "backend/engine.py",
+      "loc": 472
+    }
+  ],
+  "index_coverage_pct": 1
+}

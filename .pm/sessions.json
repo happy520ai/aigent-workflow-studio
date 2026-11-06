@@ -1,5 +1,5 @@
 {
-  "seq": 108,
+  "seq": 109,
   "sessions": [
     {
       "id": "S-0001",
@@ -1839,6 +1839,54 @@
         "backend/tests/test_security_headers.py": "09ea830f7f363e217478166ff8d2e0e9a191c80d55305432da3ae23c1090351e",
         "backend/tests/test_live_app_csp.py": "8c31e4e8c6465412e980a531ef6e2aca091272ce826b7fe40051be840cdd715a",
         "backend/tests/conftest.py": "10242fb79c9c82f1c3381376b9ae35c99647501d7905e8a645fc074b0cf67524"
+      },
+      "next_steps": []
+    },
+    {
+      "id": "S-0109",
+      "date": "2026-11-06T18:57:31.339Z",
+      "author": "",
+      "summary": "T-079 生产化 P2：后端可靠性与可观测（T20-T27）：P2 八任务全部完成：T20 healthz/readyz（免鉴权，SQLite+双循环+心跳<5s）；T21 WAL/NORMAL/busy_timeout+schema_version 显式迁移 v1→v3+写锁（T26 runs 表随 v3）；T22 obs_logging JSON 日志+X-Request-ID 中间件+SecretFilter（sk-/Bearer/X-Admin-Token/?token=+精确值兜底）；T23 /metrics Prometheus（节点/LLM/轮次直方图/WS gauge，敏感鉴权面）；T24 llm_client.py（重试退避抖动 429/5xx/超时、信号量、可配超时、degraded 徽章前后端打通）；T25 start/stop 生命周期加固（cancelling 重建+轮询等待，根治快速 lifespan 双循环全灭 flake）+503 单测；T26 runs 持久化重启不丢；T27 ECG=真实 DAG 轮延迟（归一化，前端示波器吃真实序列）。关口A：pytest 155 绿 + build 212K + verify 47:0 + 8020 实机冒烟（healthz/readyz/metrics 鉴权/安全头/JSON 日志）全过",
+      "files": [
+        "backend/perfect_main.py",
+        "backend/perfect_engine.py",
+        "backend/llm_client.py",
+        "backend/metrics.py",
+        "backend/obs_logging.py",
+        "backend/models.py",
+        "backend/tests/test_health.py",
+        "backend/tests/test_sqlite_robust.py",
+        "backend/tests/test_logging_observability.py",
+        "backend/tests/test_metrics.py",
+        "backend/tests/test_llm_client.py",
+        "backend/tests/test_lifecycle.py",
+        "backend/tests/test_runs_persistence.py",
+        "backend/tests/test_telemetry_real.py",
+        "backend/tests/test_lifecycle.py",
+        "backend/tests/test_error_isolation.py",
+        "backend/tests/test_auth_all_routes.py",
+        "frontend/src/components/NodeMicroWidgets.tsx",
+        "frontend/src/Workbench.tsx"
+      ],
+      "file_hashes": {
+        "backend/perfect_main.py": "61ed11b1e822d47d33f876d6f6db1b1fbee305ea36f339ca29ce26bf08f6092b",
+        "backend/perfect_engine.py": "c7182443d92d0a46c74d6d77d215a3fd38ee647dc7325b7e69330d673731727c",
+        "backend/llm_client.py": "4e1fe1110d9a3772da1bee6d63690e784dd38498252f63bbc7da3306300cdf48",
+        "backend/metrics.py": "1fdd3b225224ea61394e1e8c6d711a9e3834b4baf50c2fa02d6ce31890400937",
+        "backend/obs_logging.py": "3fd96da165208f6a262bce0d7d3be760efa9a973c16fa13192e46f9adbb0d475",
+        "backend/models.py": "59e1c02c1237ee6ffe31f1186807583273ca1a86c8ee56aaeb05c9a95f8d1e3c",
+        "backend/tests/test_health.py": "f6c79ff76cd475de306da9e183cbd8d7a8393c8dd63fa331a6c102bdbf4ca56b",
+        "backend/tests/test_sqlite_robust.py": "915460d99886fc6eed6b3d31c36d2344c75b4dca069a9f094e69292779060c07",
+        "backend/tests/test_logging_observability.py": "4cad007880c9fef72681329b284083dc264910d2d223eccc8feefa2bae86970f",
+        "backend/tests/test_metrics.py": "c681e25017ec126e6ccdd0ae8f66a0a8443cd0019754106be9fa8078ac3d8cfd",
+        "backend/tests/test_llm_client.py": "a323f7c35df55442b3015f15fd58c849added3d3d958c26cc4de637c8159520e",
+        "backend/tests/test_lifecycle.py": "c2b6f31ac05b30c18c9f2e477c6d4e70141705a421d66d22a39da3e3f21610e5",
+        "backend/tests/test_runs_persistence.py": "650e82b350bb89078b648dd40da99750515eb456d20f2dc44277ecb1e6636a4f",
+        "backend/tests/test_telemetry_real.py": "bd071b044553292bf1220b499de2b1dd1c27ceb11dfe964198a2346186625b73",
+        "backend/tests/test_error_isolation.py": "f54c982ab8d579972c0bb4fdecc7665c6db9bce516c05b5ad03a1e0d5932b165",
+        "backend/tests/test_auth_all_routes.py": "96559544c14ddffcb18f701720c963e0e9e7a7aa3353f4937e58b633ada0e1c3",
+        "frontend/src/components/NodeMicroWidgets.tsx": "d4f95d095d17540626060161794a40bcd1874c0ea97c86dbe5434c72c7058ccc",
+        "frontend/src/Workbench.tsx": "6f6e580c670e25385d5a59688b4f6b0f2c96fcfb6affa607c313ec3609ba567f"
       },
       "next_steps": []
     }
