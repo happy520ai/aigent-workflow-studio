@@ -1,4 +1,113 @@
 {
-  "findings": [],
-  "last_scan": "2026-11-04T17:02:31.413Z"
+  "findings": [
+    {
+      "id": "SEC-001",
+      "rule": "secret.env-file",
+      "severity": "medium",
+      "file": ".env",
+      "line": 1,
+      "fingerprint": "a618c297d4ac11b1",
+      "status": "accepted",
+      "note": "根目录 .env 为本机开发配置（含真实 LLM key，方案铁律第 3 条禁止移动/提交）；已验证 git ls-files 零命中且 .gitignore 覆盖；T62 将提供 .env.example 无值模板",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-002",
+      "rule": "secret.env-file",
+      "severity": "medium",
+      "file": "frontend/.env.local",
+      "line": 1,
+      "fingerprint": "5016f0473b2db3c0",
+      "status": "accepted",
+      "note": ".env 与 frontend/.env.local 均未入库（git ls-files 验证 0 命中）且已在 .gitignore（*.env 模式）；本机开发配置，T63 将删除 .env.local、T62 提供 .env.example 模板",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-003",
+      "rule": "danger.python-exec",
+      "severity": "medium",
+      "file": "backend/ast_validator.py",
+      "line": 100,
+      "fingerprint": "c20a6a1a3b28fd67",
+      "status": "accepted",
+      "note": "同 SEC-002：frontend/.env.local 未入库且已 gitignore；T63 删除该临时文件",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-004",
+      "rule": "secret.openai-key",
+      "severity": "high",
+      "file": "backend/scripts/real_inference_test.py",
+      "line": 234,
+      "fingerprint": "129f315631751683",
+      "status": "accepted",
+      "note": "误报：ast_validator.py:100 的 \"eval(\" 是拦截 eval() 的防御性正则模式（DANGEROUS_PATTERNS），并非动态执行代码；该文件本身是安全净化器",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-005",
+      "rule": "danger.sql-concat",
+      "severity": "high",
+      "file": "backend/static/vendor/tailwindcss-play.js",
+      "line": 1,
+      "fingerprint": "d28eb665b764ffc3",
+      "status": "accepted",
+      "note": "误报：backend/static/vendor/tailwindcss-play.js 为 Tailwind Play 3.4.16 官方 minified 构建（MIT），压缩器把 JS 模板串/变量组合成 SQL 关键字形态触发规则；该资产不接触数据库，仅被 live-app 以 CSP 白名单方式加载",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-006",
+      "rule": "danger.sql-concat",
+      "severity": "high",
+      "file": "backend/static/vendor/tailwindcss-play.js",
+      "line": 23,
+      "fingerprint": "2bee41c42d3b4615",
+      "status": "accepted",
+      "note": "误报：backend/static/vendor/tailwindcss-play.js 是第三方 minified JS（Tailwind Play 3.4.16 官方构建），压缩器变量组合撞上 SQL 关键字正则；该文件不接触任何数据库",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-007",
+      "rule": "danger.sql-concat",
+      "severity": "high",
+      "file": "backend/static/vendor/tailwindcss-play.js",
+      "line": 64,
+      "fingerprint": "d28eb665b764ffc3",
+      "status": "accepted",
+      "note": "误报：tailwindcss-play.js minified 产物中 JS 模板串被 SQL 拼接正则命中；第三方 vendor 资产，与 SQL 无关",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-008",
+      "rule": "secret.generic-assignment",
+      "severity": "medium",
+      "file": "backend/tests/test_settings_guard.py",
+      "line": 72,
+      "fingerprint": "90850c6ae7b8d696",
+      "status": "accepted",
+      "note": "误报：同上，minified 第三方 JS 的 SQL 正则误报",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    },
+    {
+      "id": "SEC-009",
+      "rule": "secret.generic-assignment",
+      "severity": "medium",
+      "file": "backend/tests/test_ws_auth.py",
+      "line": 10,
+      "fingerprint": "a3327e69004dae9d",
+      "status": "accepted",
+      "note": "误报：tests/test_settings_guard.py:72 的 \"sk-abcdef123456\" 是测试夹具假密钥，验证「响应绝不回显 api_key」用例，非真实凭据",
+      "first_seen": "2026-11-06T18:02:05.206Z",
+      "last_seen": "2026-11-06T18:02:05.206Z"
+    }
+  ],
+  "last_scan": "2026-11-06T18:02:05.206Z"
 }
