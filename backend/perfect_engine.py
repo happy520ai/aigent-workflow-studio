@@ -24,14 +24,15 @@ from models import (
     ComponentItem,
     ControlAction,
     NeuralEdge,
-    NodePosition,
-    RadarMetrics,
+    NodePosition,    RadarMetrics,
     SystemTelemetry,
     WorkflowNode,
     WorkflowSnapshot,
     WorkflowStatus,
 )
 from operator_registry import NeuralOperatorRegistry
+
+logger = get_logger("aigent.engine")
 
 
 # ======================= T21：SQLite 稳健化（P2 可靠性） =======================
