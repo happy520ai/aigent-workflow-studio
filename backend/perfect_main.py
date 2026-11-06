@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -598,13 +599,23 @@ async def export_workflow_bundle_zip():
     )
 
 
+# T15：Tailwind Play 运行时脚本本地化（原 live-app 依赖 https://cdn.tailwindcss.com 外部 CDN）
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
 @app.get("/api/v1/publish/live-app", response_class=HTMLResponse)
-async def view_published_live_app():
-    # CSP sandbox（不带 allow-same-origin）使页面处于不透明源：即使有残留脚本也读不到 API 同源数据
+async def view_published_live_app(request: Request):
+    # CSP sandbox（不带 allow-same-origin）使页面处于不透明源：即使有残留脚本也读不到 API 同源数据。
+    # T15：脚本仅允许本地 vendor 的 Tailwind Play（按请求 host 生成绝对地址，规避 opaque origin 下
+    # 'self' 失效问题），script-src 不再放行外部 CDN 与 'unsafe-inline'；
+    # style-src 保留 'unsafe-inline'（净化产物为任意 LLM 输出的内联样式，hash 无法静态枚举）。
+    base = str(request.base_url).rstrip("/")
     sandbox_csp = (
         "sandbox allow-scripts; default-src 'none'; "
-        "script-src https://cdn.tailwindcss.com 'unsafe-inline'; "
-        "style-src 'unsafe-inline' https://cdn.tailwindcss.com; img-src data: https:"
+        f"script-src {base}/static/vendor/tailwindcss-play.js; "
+        "style-src 'unsafe-inline'; img-src data: https:"
     )
     return HTMLResponse(
         content=f"""<!DOCTYPE html>
@@ -612,7 +623,7 @@ async def view_published_live_app():
 <head>
   <meta charset="UTF-8" />
   <title>AIGENT-WORKFLOW Live App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="{base}/static/vendor/tailwindcss-play.js"></script>
 </head>
 <body class="bg-[#070a12] text-slate-100 min-h-screen flex items-center justify-center p-6">
   <div class="w-full max-w-lg">{engine.latest_sandbox_html}</div>
