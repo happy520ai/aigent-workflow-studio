@@ -1,0 +1,74 @@
+=== BASELINE 2026-11-07 01:30:56 (T01) ===
+
+--- [1] backend pytest ---
+........................................................................ [ 86%]
+...........                                                              [100%]
+
+--- [2] frontend npm run build ---
+
+> aigent-workflow-studio-pro@2.8.0 build
+> tsc && vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1586 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[35massets/index-C3trAslv.css  [39m[1m[2m 28.81 kB[22m[1m[22m[2m │ gzip:  5.86 kB[22m
+[2mdist/[22m[36massets/index-CeqXUSF_.js   [39m[1m[2m211.75 kB[22m[1m[22m[2m │ gzip: 65.38 kB[22m
+[32m✓ built in 11.68s[39m
+
+--- [3] verify-perfect-workbench.js ---
+[PERFECT v2.8] 结构校验（终极版三件套）
+  ✓ CheckpointStore（SQLite 时间旅行断点）存在
+  ✓ checkpoints 表 DDL 存在
+  ✓ 断点写入走 asyncio.to_thread
+  ✓ 断点查询 list_checkpoints 存在
+  ✓ PerfectNeuralEngine 存在
+  ✓ Kahn 动态拓扑分层编译器存在
+  ✓ 环路兜底（反馈层）逻辑存在
+  ✓ 跨节点共享记忆总线存在
+  ✓ 算子拖拽注入画布 API 存在
+  ✓ 实时沙盒 HTML/Tailwind 模板存在
+  ✓ 沙盒初始缓存注入
+  ✓ 节点输出表（数据沿边流动）存在
+  ✓ node_update 事件携带完整节点与沙盒代码
+  ✓ node_update 事件携带 sandbox_html
+  ✓ telemetry_tick 不含 sandbox_html（A8 遥测瘦身）
+  ✓ 节点 type 别名归一化表存在
+  ✓ POST /nodes 算子注入路由存在
+  ✓ PATCH 坐标同步路由存在
+  ✓ PUT JSON 热修改路由存在
+  ✓ GET /checkpoints 时间旅行路由存在
+  ✓ GET /sandbox/preview 路由存在
+  ✓ 版本号 2.8.0-ultimate
+  ✓ AddNode/MoveNode 请求模型存在
+  ✓ 设置接口管理守卫 require_admin 存在
+  ✓ api_base SSRF 校验存在
+  ✓ live-app 沙盒 CSP 存在
+  ✓ GET /runs 运行记录路由存在
+  ✓ DELETE /nodes/{id} 路由存在
+  ✓ WS 首连消息携带顶层 sandbox_html
+  ✓ 前端引用统一 API 配置常量
+  ✓ src/config.ts 含默认后端地址
+  ✓ 前端处理 node_update 事件
+  ✓ 算子点击注入画布交互存在
+  ✓ Workbench 引用 BioluminescentCanvas 画布引擎
+  ✓ 加色混合画布（globalCompositeOperation）存在
+  ✓ 有机神经元胞体绘制存在
+  ✓ 突触彗星脉冲绘制存在
+  ✓ 五维雷达图组件接入
+  ✓ 五维雷达标签齐全且不重复
+  ✓ 事件捕获节点心电波形存在
+  ✓ 节点拖拽交互存在
+  ✓ JSON 配置热编辑与校验存在
+  ✓ DOM 沙盒实时预览弹窗存在
+  ✓ 本地仿真回退内核（后端未启动时驱动动画）存在
+  ✓ AI 终端日志分级着色存在
+  ✓ 顶部标题栏品牌标识存在
+  ✓ WS 连接指示灯存在
+
+结构校验结果: 47 通过, 0 失败
+
+[补记] pytest -q 摘要行因 pytest.ini addopts -q 且终端非 TTY 未打印；以 --collect-only 累计=83、运行退出码=0 确认：83 passed, 0 failed。
