@@ -29,6 +29,7 @@ import { useSynapseLinker } from './hooks/useSynapseLinker';
 import { useWorkflowSocket } from './hooks/useWorkflowSocket';
 import { workflowApi } from './hooks/useWorkflowApi';
 import { API_BASE, WS_URL, setAdminToken } from './config';
+import { emitToast } from './components/Toast';
 import { computeLayeredLayout } from './utils/layout';
 import {
   INITIAL_NODES,
@@ -93,6 +94,7 @@ export default function Workbench() {
 
   // WebSocket 连接状态：一次建立连接，断线指数退避重连
   const [wsConnected, setWsConnected] = useState<boolean>(false);
+  const [wsRetryCount, setWsRetryCount] = useState<number>(0); // T42：重连中第 N 次
   const [runHistory, setRunHistory] = useState<RunRecord[]>([]);
 
   // 最新状态镜像：WS 回调与本地仿真定时器读取，避免闭包过期
@@ -278,7 +280,14 @@ export default function Workbench() {
       );
     },
     onTerminalLog: (data) => setTerminalLogs(data.logs),
-    onConnectionChange: setWsConnected,
+    onConnectionChange: (connected) => {
+      setWsConnected(connected);
+      if (connected) setWsRetryCount(0);
+    },
+    onReconnecting: (attempt) => {
+      setWsRetryCount(attempt);
+      if (attempt === 1) emitToast('与后端断开，正在重连…', 'info');
+    },
     onSimulateTelemetry: () => {
       setCpuSeries((prev) => [...prev.slice(1), Math.round(28 + Math.random() * 52)]);
       setMemSeries((prev) => [...prev.slice(1), +(60 + Math.random() * 9).toFixed(1)]);
@@ -611,7 +620,7 @@ export default function Workbench() {
             </div>
           </button>
 
-          {/* 后端连接指示灯：绿点=已连接后端，灰点=本地仿真 */}
+          {/* 后端连接指示灯：绿点=已连接后端；黄点=重连中；灰点=本地仿真（T42 状态条） */}
           <div
             className="pl-3 text-xs text-slate-300 flex items-center space-x-1.5"
             title={wsConnected ? `WS: ${WS_URL}` : `等待后端 ${WS_URL}`}
@@ -620,11 +629,17 @@ export default function Workbench() {
               className={`w-2 h-2 rounded-full ${
                 wsConnected
                   ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.95)]'
+                  : wsRetryCount > 0
+                  ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]'
                   : 'bg-slate-500'
               }`}
             />
-            <span className={wsConnected ? 'text-emerald-300' : 'text-slate-400'}>
-              {wsConnected ? '已连接后端' : '本地仿真'}
+            <span
+              className={
+                wsConnected ? 'text-emerald-300' : wsRetryCount > 0 ? 'text-amber-300' : 'text-slate-400'
+              }
+            >
+              {wsConnected ? '已连接后端' : wsRetryCount > 0 ? `重连中 第 ${wsRetryCount} 次` : '本地仿真'}
             </span>
           </div>
 

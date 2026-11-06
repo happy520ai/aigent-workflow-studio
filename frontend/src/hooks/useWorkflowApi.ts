@@ -1,6 +1,7 @@
-// frontend/src/hooks/useWorkflowApi.ts —— T40：REST 封装（统一 adminHeaders 与可读错误）
+// frontend/src/hooks/useWorkflowApi.ts —— T40：REST 封装（统一 adminHeaders 与可读错误 + T42 toast）
 // 行为迁移自 Workbench 内联 fetch：调用方负责状态更新与日志，本层只负责「说人话」的失败。
 import { API_BASE, adminHeaders } from '../config';
+import { emitToast } from '../components/Toast';
 import type { NeuralEdge, RunRecord, WorkflowNode } from '../types';
 
 async function parseErrorDetail(res: Response, fallback: string): Promise<string> {
@@ -13,7 +14,16 @@ async function parseErrorDetail(res: Response, fallback: string): Promise<string
 }
 
 async function jsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
-  if (!res.ok) throw new Error(await parseErrorDetail(res, fallback));
+  if (!res.ok) {
+    const detail = await parseErrorDetail(res, fallback);
+    // T42：REST 失败统一给可读 toast；401 明确指向令牌入口
+    if (res.status === 401) {
+      emitToast('需要管理令牌：请在「大模型设置」抽屉中填写', 'error');
+    } else {
+      emitToast(`${fallback}：${detail}`, 'error');
+    }
+    throw new Error(detail);
+  }
   return res.json();
 }
 

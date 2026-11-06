@@ -29,6 +29,8 @@ export interface WorkflowSocketHandlers {
   onNodeStream: (data: { node_id: string; delta: string }) => void;
   onTerminalLog: (data: { logs: string[] }) => void;
   onConnectionChange: (connected: boolean) => void;
+  /** T42：每次调度重连时回调（attempt 从 1 开始），驱动「重连中 第 N 次」状态条 */
+  onReconnecting?: (attempt: number) => void;
   /** 本地仿真回退：每 450ms 驱动一次 CPU/内存曲线（仅离线时） */
   onSimulateTelemetry: () => void;
   /** 鉴别「拖拽中」节点与最新节点坐标（快照合并用） */
@@ -105,6 +107,7 @@ export function useWorkflowSocket(handlers: WorkflowSocketHandlers): void {
       if (disposed || generation !== wsLoopGeneration) return;
       const delay = Math.min(15000, 1000 * Math.pow(2, retry));
       retry += 1;
+      handlers.onReconnecting?.(retry);
       reconnectTimer = window.setTimeout(connect, delay);
     };
 
