@@ -38,7 +38,7 @@ import {
 } from './components/NodeMicroWidgets';
 import { SandboxAndTimeTravelModal } from './components/SandboxAndTimeTravel';
 import { useSynapseLinker } from './hooks/useSynapseLinker';
-import { API_BASE, WS_URL, buildWsUrl } from './config';
+import { API_BASE, WS_URL, adminHeaders, buildWsUrl } from './config';
 
 interface NodePosition {
   x: number;
@@ -340,6 +340,9 @@ export default function Workbench() {
   const [cpuSeries, setCpuSeries] = useState<number[]>([35, 58, 28, 72, 40, 63, 34, 76, 48, 65, 39, 58]);
   const [ecgSeries, setEcgSeries] = useState<number[]>([]);
   const [streamInfo, setStreamInfo] = useState<{ nodeId: string; text: string } | null>(null);
+  // T32(32c)：多工作流切换器状态
+  const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string>('default');
   const [memSeries, setMemSeries] = useState<number[]>([62, 64, 63, 66, 64, 67, 65, 68, 66, 67, 65, 68]);
   const [radar, setRadar] = useState<RadarMetrics>({
     radar_perception: 92,
@@ -383,6 +386,61 @@ export default function Workbench() {
   const pushLog = useCallback((line: string) => {
     setTerminalLogs((prev) => [...prev.slice(-9), line]);
   }, []);
+
+  // ======================= T32(32c)：多工作流切换器 =======================
+  const refreshWorkflows = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/workflows`, { headers: adminHeaders() });
+      if (res.ok) setWorkflows(await res.json());
+    } catch {
+      // 后端未启动（离线仿真）时静默
+    }
+  }, []);
+
+  const activateWorkflow = useCallback(
+    async (id: string) => {
+      if (!id || id === activeWorkflowId) return;
+      try {
+        const res = await fetch(`${API_BASE}/workflows/${encodeURIComponent(id)}/activate`, {
+          method: 'POST',
+          headers: adminHeaders(),
+        });
+        if (!res.ok) throw new Error(`activate ${id} failed: ${res.status}`);
+        const snap = await res.json();
+        setActiveWorkflowId(snap.workflow_id ?? id);
+        setNodes(snap.nodes ?? []);
+        setEdges(snap.edges ?? []);
+        setTerminalLogs(snap.terminal_logs ?? []);
+        pushLog(`[Workflow] 已切换到工作流 ${snap.workflow_id ?? id}`);
+        void refreshWorkflows();
+      } catch (err) {
+        pushLog(`[Error] 切换工作流失败: ${String(err)}`);
+      }
+    },
+    [activeWorkflowId, pushLog, refreshWorkflows]
+  );
+
+  const createWorkflow = useCallback(async () => {
+    const name = window.prompt('新工作流名称', '新工作流');
+    if (!name) return;
+    try {
+      const res = await fetch(`${API_BASE}/workflows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error(`create failed: ${res.status}`);
+      const wf = await res.json();
+      await refreshWorkflows();
+      await activateWorkflow(wf.id);
+    } catch (err) {
+      pushLog(`[Error] 新建工作流失败: ${String(err)}`);
+    }
+  }, [activateWorkflow, pushLog, refreshWorkflows]);
+
+  useEffect(() => {
+    void refreshWorkflows();
+  }, [refreshWorkflows]);
 
   const { linkingSourceId, handleNodeShiftClick, persistNodePosition } = useSynapseLinker(
     API_BASE,
@@ -464,6 +522,8 @@ export default function Workbench() {
       ws.onmessage = (evt) => {
         const msg = JSON.parse(evt.data);
         if (msg.event === 'workflow_snapshot') {
+          // T32：快照携带所属工作流，驱动切换器回显
+          if (msg.data.workflow_id) setActiveWorkflowId(msg.data.workflow_id);
           setProjectStatus(msg.data.project_status);
           // 拖拽中的节点沿用本地坐标，避免被整张快照拽走
           setNodes(
@@ -829,6 +889,32 @@ export default function Workbench() {
             <div className="text-[10px] tracking-widest text-slate-400 font-mono">
               AIGENT-WORKFLOW STUDIO v2.8
             </div>
+          </div>
+
+          {/* T32(32c)：多工作流切换器 */}
+          <div className="flex items-center gap-1.5 ml-4">
+            <select
+              aria-label="切换工作流"
+              value={activeWorkflowId}
+              onChange={(e) => void activateWorkflow(e.target.value)}
+              className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-slate-200 font-mono outline-none focus:border-cyan-400/70 max-w-40"
+            >
+              {workflows.length === 0 && <option value={activeWorkflowId}>{activeWorkflowId}</option>}
+              {workflows.map((wf) => (
+                <option key={wf.id} value={wf.id}>
+                  {wf.name || wf.id}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              aria-label="新建工作流"
+              onClick={() => void createWorkflow()}
+              title="新建工作流"
+              className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-cyan-300 font-mono hover:border-cyan-400/70 transition"
+            >
+              + 新建
+            </button>
           </div>
         </div>
 

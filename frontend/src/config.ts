@@ -44,3 +44,9 @@ export function buildWsUrl(): string {
   const token = getAdminToken();
   return token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
 }
+
+/** REST 请求统一附带管理令牌头（T10/T43；未配置令牌时返回空对象） */
+export function adminHeaders(): Record<string, string> {
+  const token = getAdminToken();
+  return token ? { 'X-Admin-Token': token } : {};
+}
