@@ -6,12 +6,13 @@ import type { WorkflowNode } from '../types';
 export const NodeCard: React.FC<{
   node: WorkflowNode;
   isSelected: boolean;
+  isInSelection?: boolean;
   isLinkSource: boolean;
   isRunning: boolean;
   ecgSeries: number[];
   onNodeMouseDown: (e: React.MouseEvent<HTMLDivElement>, node: WorkflowNode) => void;
   onOpenSandbox: () => void;
-}> = ({ node, isSelected, isLinkSource, isRunning, ecgSeries, onNodeMouseDown, onOpenSandbox }) => {
+}> = ({ node, isSelected, isInSelection, isLinkSource, isRunning, ecgSeries, onNodeMouseDown, onOpenSandbox }) => {
   // 状态着色边框：error 红 / skipped 灰 / 其余主题色
   const borderColor =
     node.status === 'error'
@@ -33,7 +34,9 @@ export const NodeCard: React.FC<{
           ? `0 0 24px ${node.theme_color}85, inset 0 0 14px ${node.theme_color}35`
           : `0 0 15px ${node.theme_color}45, inset 0 0 8px ${node.theme_color}20`,
       }}
-      className="absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border p-3 cursor-grab active:cursor-grabbing z-20 transition-shadow"
+      className={`absolute w-[195px] rounded-xl bg-[#0e1628]/80 backdrop-blur-md border p-3 cursor-grab active:cursor-grabbing z-20 transition-shadow ${
+        isInSelection ? 'ring-2 ring-cyan-400/80 border-dashed' : ''
+      }`}
     >
       <div className="flex items-start justify-between mb-1.5">
         <div>

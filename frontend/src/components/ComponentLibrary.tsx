@@ -14,7 +14,6 @@ import {
   FlaskConical,
   Rocket,
   Search,
-  Filter,
   ChevronDown,
   Sparkles,
 } from 'lucide-react';
@@ -89,9 +88,7 @@ export const ComponentLibrary: React.FC<{
           className="w-full bg-[#151e32] border border-slate-700/70 rounded-md py-1 pl-7 pr-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
         />
       </div>
-      <button className="p-1.5 bg-[#151e32] border border-slate-700/70 rounded-md text-slate-400 hover:text-white">
-        <Filter className="w-3.5 h-3.5" />
-      </button>
+      {/* T44：原 Filter 按钮无实现已按方案删除 */}
     </div>
 
     {/* T34：AI 生成节点入口（自然语言 → 服务端校验后的拓扑增量） */}

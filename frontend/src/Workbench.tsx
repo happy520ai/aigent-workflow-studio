@@ -41,6 +41,13 @@ import {
   type WorkflowNode,
 } from './types';
 
+// T44：拓扑命令（撤销/重做）。注意：删除后重加的节点/连线会获得新 id，重做链为近似还原。
+type TopoCommand =
+  | { kind: 'add_node'; node: WorkflowNode }
+  | { kind: 'del_node'; node: WorkflowNode; edges: NeuralEdge[] }
+  | { kind: 'add_edge'; edge: NeuralEdge }
+  | { kind: 'del_edge'; edge: NeuralEdge };
+
 export default function Workbench() {
   const [projectStatus, setProjectStatus] = useState<ProjectStatus>('运行中');
   const [nodes, setNodes] = useState<WorkflowNode[]>(INITIAL_NODES);
@@ -214,6 +221,7 @@ export default function Workbench() {
     API_BASE,
     (newEdge) => {
       setEdges((prev) => [...prev, newEdge]);
+      pushUndo({ kind: 'add_edge', edge: newEdge });
       pushLog(`[Synapse] 已建立突触连线: ${newEdge.source} -> ${newEdge.target}`);
     },
     (msg) => pushLog(`[Error] 连线失败: ${msg}`)
@@ -354,6 +362,7 @@ export default function Workbench() {
             ? prev.map((n) => (n.id === created.id ? created : n))
             : [...prev, created]
         );
+        pushUndo({ kind: 'add_node', node: created });
         setSelectedNodeId(created.id);
         pushLog(`[Topology] 已挂载神经元节点: ${item.label}`);
       } catch (err) {
@@ -397,49 +406,183 @@ export default function Workbench() {
     pushLog(`[Topology] [本地仿真] 已挂载神经元节点: ${item.label}`);
   };
 
+  // ==================== T44：框选 / 缩放平移 / 命令栈状态 ====================
+  const [selectionSet, setSelectionSet] = useState<Set<string>>(new Set());
+  const [selectionRect, setSelectionRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [view, setView] = useState<{ zoom: number; panX: number; panY: number }>({ zoom: 1, panX: 0, panY: 0 });
+  const mainRef = useRef<HTMLDivElement | null>(null);
+  const boxStartRef = useRef<{ x: number; y: number } | null>(null);
+  const panStateRef = useRef<{ lastX: number; lastY: number } | null>(null);
+
+  // ==================== T44：撤销 / 重做（命令栈，经后端幂等 API 反向执行） ====================
+  const undoStackRef = useRef<TopoCommand[]>([]);
+  const redoStackRef = useRef<TopoCommand[]>([]);
+  const [historySize, setHistorySize] = useState<{ undo: number; redo: number }>({ undo: 0, redo: 0 });
+
+  const syncHistorySize = useCallback(() => {
+    setHistorySize({ undo: undoStackRef.current.length, redo: redoStackRef.current.length });
+  }, []);
+
+  const pushUndo = useCallback(
+    (cmd: TopoCommand) => {
+      undoStackRef.current = [...undoStackRef.current.slice(-49), cmd];
+      redoStackRef.current = [];
+      syncHistorySize();
+    },
+    [syncHistorySize]
+  );
+
+  const refreshSnapshotQuiet = useCallback(async () => {
+    try {
+      const snap = await workflowApi.getSnapshot();
+      setNodes(snap.nodes);
+      setEdges(snap.edges);
+    } catch {
+      // 离线时保留本地状态
+    }
+  }, []);
+
+  const applyUndo = useCallback(async () => {
+    const cmd = undoStackRef.current.pop();
+    if (!cmd) return;
+    try {
+      if (cmd.kind === 'add_node') {
+        await workflowApi.deleteNode(cmd.node.id);
+      } else if (cmd.kind === 'del_node') {
+        await workflowApi.addNode({ component_id: cmd.node.type, x: cmd.node.position.x, y: cmd.node.position.y, connect_from: null });
+        for (const e of cmd.edges) {
+          try {
+            await workflowApi.addEdge(e.source, e.target);
+          } catch {
+            // 连线可能已存在（409）或端点为本地仿真节点，忽略
+          }
+        }
+      } else if (cmd.kind === 'add_edge') {
+        await workflowApi.deleteEdge(cmd.edge.id);
+      } else {
+        await workflowApi.addEdge(cmd.edge.source, cmd.edge.target);
+      }
+      redoStackRef.current = [...redoStackRef.current, cmd];
+      syncHistorySize();
+      await refreshSnapshotQuiet();
+      pushLog('[History] 已撤销上一步拓扑操作');
+    } catch (err) {
+      undoStackRef.current = [...undoStackRef.current, cmd]; // 失败回滚栈
+      pushLog(`[Error] 撤销失败: ${String(err)}`);
+    }
+  }, [pushLog, refreshSnapshotQuiet, syncHistorySize]);
+
+  const applyRedo = useCallback(async () => {
+    const cmd = redoStackRef.current.pop();
+    if (!cmd) return;
+    try {
+      if (cmd.kind === 'add_node') {
+        const created = await workflowApi.addNode({ component_id: cmd.node.type, x: cmd.node.position.x, y: cmd.node.position.y, connect_from: null });
+        void created;
+      } else if (cmd.kind === 'del_node') {
+        await workflowApi.deleteNode(cmd.node.id);
+      } else if (cmd.kind === 'add_edge') {
+        await workflowApi.addEdge(cmd.edge.source, cmd.edge.target);
+      } else {
+        await workflowApi.deleteEdge(cmd.edge.id);
+      }
+      undoStackRef.current = [...undoStackRef.current, cmd];
+      syncHistorySize();
+      await refreshSnapshotQuiet();
+      pushLog('[History] 已重做拓扑操作');
+    } catch (err) {
+      redoStackRef.current = [...redoStackRef.current, cmd];
+      pushLog(`[Error] 重做失败: ${String(err)}`);
+    }
+  }, [pushLog, refreshSnapshotQuiet, syncHistorySize]);
+
   // ==================== 节点与连线删除（拓扑抽屉 / 检视器 / Delete 键共用） ====================
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
       if (!nodeId) return;
       try {
         await workflowApi.deleteNode(nodeId);
+        const removedNode = nodesRef.current.find((n) => n.id === nodeId);
+        const removedEdges = edges.filter((e) => e.source === nodeId || e.target === nodeId);
+        if (removedNode) {
+          pushUndo({ kind: 'del_node', node: removedNode, edges: removedEdges });
+        }
         setNodes((prev) => prev.filter((n) => n.id !== nodeId));
         setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
         setSelectedNodeId((prev) => (prev === nodeId ? '' : prev));
+        setSelectionSet(new Set());
         pushLog(`[Topology] 已删除节点 ${nodeId}`);
       } catch (err) {
         pushLog(`[Error] ${String(err)}`);
       }
     },
-    [pushLog]
+    [edges, pushLog]
   );
 
   const handleDeleteEdge = useCallback(
     async (edgeId: string) => {
       try {
         await workflowApi.deleteEdge(edgeId);
+        const removed = edges.find((e) => e.id === edgeId);
+        if (removed) pushUndo({ kind: 'del_edge', edge: removed });
         setEdges((prev) => prev.filter((e) => e.id !== edgeId));
         pushLog(`[Synapse] 已断开连线 ${edgeId}`);
       } catch (err) {
         pushLog(`[Error] ${String(err)}`);
       }
     },
-    [pushLog]
+    [edges, pushLog]
   );
 
-  // 选中节点后按 Delete 删除（输入框聚焦时不触发）
+  // ==================== T44：键盘（Delete / Ctrl+Z / Ctrl+Y）与原生滚轮缩放 ====================
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' || !selectedNodeId) return;
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (window.confirm(`确认删除节点 ${selectedNodeId}？`)) {
-        handleDeleteNode(selectedNodeId);
+      const inEditor = tag === 'INPUT' || tag === 'TEXTAREA';
+      if ((e.ctrlKey || e.metaKey) && !inEditor && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) void applyRedo();
+        else void applyUndo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !inEditor && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        void applyRedo();
+        return;
+      }
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (inEditor) return;
+      if (selectionSet.size > 0) {
+        if (window.confirm(`确认删除选中的 ${selectionSet.size} 个节点？`)) {
+          selectionSet.forEach((id) => void handleDeleteNode(id));
+        }
+        return;
+      }
+      if (e.key === 'Delete' && selectedNodeId) {
+        if (window.confirm(`确认删除节点 ${selectedNodeId}？`)) {
+          handleDeleteNode(selectedNodeId);
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedNodeId, handleDeleteNode]);
+  }, [selectedNodeId, selectionSet, handleDeleteNode, applyUndo, applyRedo]);
+
+  // 原生 wheel 监听（React 的 onWheel 为 passive，无法 preventDefault 阻止浏览器缩放）
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setView((v) => {
+        const zoom = Math.min(2.5, Math.max(0.4, v.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+        return { ...v, zoom };
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   // ==================== 拓扑抽屉：最近运行记录 ====================
   const fetchRunHistory = useCallback(async () => {
@@ -496,11 +639,12 @@ export default function Workbench() {
     }
   };
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     if (!draggingNodeId) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const nextX = Math.max(10, Math.min(rect.width - 230, e.clientX - rect.left - dragOffsetRef.current.x));
-    const nextY = Math.max(10, Math.min(rect.height - 150, e.clientY - rect.top - dragOffsetRef.current.y));
+    // T44：视图缩放下的拖拽（位移换算回画布坐标）
+    const nextX = Math.max(10, Math.min((rect.width - 230) / view.zoom, (e.clientX - rect.left) / view.zoom - dragOffsetRef.current.x));
+    const nextY = Math.max(10, Math.min((rect.height - 150) / view.zoom, (e.clientY - rect.top) / view.zoom - dragOffsetRef.current.y));
     setNodes((prev) =>
       prev.map((n) => (n.id === draggingNodeId ? { ...n, position: { x: nextX, y: nextY } } : n))
     );
@@ -570,6 +714,27 @@ export default function Workbench() {
               className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-cyan-300 font-mono hover:border-cyan-400/70 transition"
             >
               + 新建
+            </button>
+            {/* T44：撤销 / 重做 */}
+            <button
+              type="button"
+              aria-label="撤销"
+              onClick={() => void applyUndo()}
+              disabled={historySize.undo === 0}
+              title="撤销 (Ctrl+Z)"
+              className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-slate-200 font-mono hover:border-slate-300 disabled:opacity-40 disabled:hover:border-slate-600/70 transition"
+            >
+              ↶
+            </button>
+            <button
+              type="button"
+              aria-label="重做"
+              onClick={() => void applyRedo()}
+              disabled={historySize.redo === 0}
+              title="重做 (Ctrl+Y)"
+              className="px-2 py-1 rounded-md bg-slate-900/80 border border-slate-600/70 text-[11px] text-slate-200 font-mono hover:border-slate-300 disabled:opacity-40 disabled:hover:border-slate-600/70 transition"
+            >
+              ↷
             </button>
             {/* T35：Kahn 分层自动布局 */}
             <button
@@ -796,10 +961,78 @@ export default function Workbench() {
           onAiSuggest={() => void handleAiSuggest()}
         />
 
-        {/* 2.3 中央加色混合生物发光神经元画布 */}
+        {/* 2.3 中央加色混合生物发光神经元画布（T44：框选 / 中键平移 / Ctrl+滚轮缩放） */}
         <main
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
+          ref={mainRef}
+          onMouseMove={(e) => {
+            // 框选中：更新选区矩形
+            if (boxStartRef.current) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setSelectionRect({
+                x1: boxStartRef.current.x,
+                y1: boxStartRef.current.y,
+                x2: (e.clientX - rect.left - view.panX) / view.zoom,
+                y2: (e.clientY - rect.top - view.panY) / view.zoom,
+              });
+              return;
+            }
+            // 中键平移
+            if (panStateRef.current) {
+              const dx = e.clientX - panStateRef.current.lastX;
+              const dy = e.clientY - panStateRef.current.lastY;
+              panStateRef.current = { lastX: e.clientX, lastY: e.clientY };
+              setView((v) => ({ ...v, panX: v.panX + dx, panY: v.panY + dy }));
+              return;
+            }
+            handleCanvasMouseMove(e);
+          }}
+          onMouseDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.button === 1) {
+              // 中键：平移
+              e.preventDefault();
+              panStateRef.current = { lastX: e.clientX, lastY: e.clientY };
+              return;
+            }
+            if (e.button === 0) {
+              // 左键空白处：开始框选（画布坐标 = (client - rect - pan) / zoom）
+              const rect = e.currentTarget.getBoundingClientRect();
+              boxStartRef.current = {
+                x: (e.clientX - rect.left - view.panX) / view.zoom,
+                y: (e.clientY - rect.top - view.panY) / view.zoom,
+              };
+              setSelectionRect({ x1: boxStartRef.current.x, y1: boxStartRef.current.y, x2: boxStartRef.current.x, y2: boxStartRef.current.y });
+              setSelectionSet(new Set());
+            }
+          }}
+          onMouseUp={() => {
+            if (panStateRef.current) {
+              panStateRef.current = null;
+              return;
+            }
+            if (boxStartRef.current && selectionRect) {
+              const minX = Math.min(selectionRect.x1, selectionRect.x2);
+              const maxX = Math.max(selectionRect.x1, selectionRect.x2);
+              const minY = Math.min(selectionRect.y1, selectionRect.y2);
+              const maxY = Math.max(selectionRect.y1, selectionRect.y2);
+              if (Math.abs(maxX - minX) > 8 && Math.abs(maxY - minY) > 8) {
+                const hits = nodesRef.current
+                  .filter((n) => {
+                    const nx = n.position.x;
+                    const ny = n.position.y;
+                    return nx + 195 >= minX && nx <= maxX && ny + 120 >= minY && ny <= maxY;
+                  })
+                  .map((n) => n.id);
+                setSelectionSet(new Set(hits));
+                if (hits.length > 0) pushLog(`[Select] 框选 ${hits.length} 个节点`);
+              }
+              boxStartRef.current = null;
+              setSelectionRect(null);
+              return;
+            }
+            handleCanvasMouseUp();
+          }}
+          onContextMenu={(e) => e.preventDefault()}
           className="flex-1 relative overflow-hidden bg-[#080c17]"
           style={{
             backgroundImage:
@@ -807,6 +1040,11 @@ export default function Workbench() {
             backgroundSize: '24px 24px',
           }}
         >
+          {/* T44：缩放平移变换层（画布引擎与节点卡同步变换） */}
+          <div
+            className="absolute inset-0"
+            style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`, transformOrigin: '0 0' }}
+          >
           {/* 60FPS 加色混合生物神经元 + 多股交织突触彗星脉冲引擎 */}
           <BioluminescentCanvas
             isRunning={projectStatus === '运行中'}
@@ -841,6 +1079,7 @@ export default function Workbench() {
                 key={node.id}
                 node={node}
                 isSelected={node.id === selectedNodeId}
+                isInSelection={selectionSet.has(node.id)}
                 isLinkSource={node.id === linkingSourceId}
                 isRunning={projectStatus === '运行中'}
                 ecgSeries={ecgSeries}
@@ -851,15 +1090,30 @@ export default function Workbench() {
                     handleNodeShiftClick(nd.id);
                     return;
                   }
+                  setSelectionSet(new Set());
                   setSelectedNodeId(nd.id);
                   setDraggingNodeId(nd.id);
                   dragOffsetRef.current = {
-                    x: e.clientX - e.currentTarget.getBoundingClientRect().left,
-                    y: e.clientY - e.currentTarget.getBoundingClientRect().top,
+                    x: (e.clientX - e.currentTarget.getBoundingClientRect().left) / view.zoom,
+                    y: (e.clientY - e.currentTarget.getBoundingClientRect().top) / view.zoom,
                   };
                 }}
               />
             ))}
+          </div>
+
+          {/* T44：框选矩形（画布坐标 → 屏幕坐标） */}
+          {selectionRect && (
+            <div
+              className="absolute border border-cyan-400/80 bg-cyan-400/10 pointer-events-none z-30"
+              style={{
+                left: Math.min(selectionRect.x1, selectionRect.x2) * view.zoom + view.panX,
+                top: Math.min(selectionRect.y1, selectionRect.y2) * view.zoom + view.panY,
+                width: Math.abs(selectionRect.x2 - selectionRect.x1) * view.zoom,
+                height: Math.abs(selectionRect.y2 - selectionRect.y1) * view.zoom,
+              }}
+            />
+          )}
         </main>
 
         {/* 2.4 右侧属性配置、五维扫描雷达、JSON 配置区与 AI 终端 */}

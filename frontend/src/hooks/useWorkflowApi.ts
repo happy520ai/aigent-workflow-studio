@@ -72,6 +72,15 @@ export const workflowApi = {
     if (!res.ok) throw new Error(`断开连线失败: HTTP ${res.status}`);
   },
 
+  addEdge: async (source: string, target: string): Promise<NeuralEdge> => {
+    const res = await fetch(`${API_BASE}/workflow/edges`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+      body: JSON.stringify({ source, target }),
+    });
+    return jsonOrThrow(res, '建立连线失败');
+  },
+
   putNodeConfig: async (nodeId: string, config: Record<string, any>): Promise<WorkflowNode> => {
     const res = await fetch(`${API_BASE}/workflow/nodes/${nodeId}/config`, {
       method: 'PUT',
