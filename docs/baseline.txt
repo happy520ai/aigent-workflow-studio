@@ -75,3 +75,6 @@ computing gzip size...
 
 === T46 dist 基线（2026-11-07）===
 index.html 0.59K | CSS 32.33K | lucide 22.00K | app 72.09K | react_vendor 133.93K；总计 269K；sourcemap=0；Tailwind 已是构建期本地化（无 CDN）
+
+=== T51 Lighthouse a11y（2026-11-07，playwright chromium headless）===
+accessibility score = 100/100（门槛 ≥90）；报告 docs/lighthouse-a11y.json
