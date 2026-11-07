@@ -15,6 +15,8 @@ services:
       # 不是回环，未设令牌时设置的读写会按设计返回 403。
       # 设置后前端「设置」抽屉的「管理令牌」框填同一值即可。
       - AIGENT_ADMIN_TOKEN=${AIGENT_ADMIN_TOKEN:-}
+      # WS/REST 同源白名单：按部署入口主机调整（T11 Origin 校验）
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       # 信任 compose 内网代理（nginx）转发的 X-Forwarded-For：
       # uvicorn 的 forwarded-allow-ips 仅支持精确 IP（无 CIDR），
       # 故给 nginx 容器分配静态 IP 172.28.0.3 并在此精确匹配
@@ -22,7 +24,7 @@ services:
     networks:
       - aigent-net
     volumes:
-      - ./backend/data:/app/data
+      - aigent-data:/app/data
     # T61：healthcheck + 依赖门控 + 资源限制
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status==200 else 1)"]
@@ -68,6 +70,9 @@ services:
           cpus: "0.5"
 
 # 固定子网：给前端 nginx 一个静态 IP，供后端 forwarded-allow-ips 精确信任
+volumes:
+  aigent-data:
+
 networks:
   aigent-net:
     driver: bridge
