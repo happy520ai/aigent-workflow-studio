@@ -27,7 +27,7 @@ any_text = st.text(max_size=512)
 
 
 @given(any_text)
-@settings(max_examples=300, deadline=None)
+@settings(max_examples=300, deadline=None, database=None)
 def test_fuzz_arbitrary_text_never_raises_and_is_safe(code: str) -> None:
     try:
         report = FrontendASTValidator.validate_and_heal(code)
@@ -64,7 +64,7 @@ attack_fragments = st.sampled_from(
 
 
 @given(attack_fragments, st.text(max_size=64), attack_fragments)
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=200, deadline=None, database=None)
 def test_fuzz_attack_composites(a: str, middle: str, b: str) -> None:
     payload = a + middle + b
     try:
@@ -82,7 +82,7 @@ _attr_value = st.text(
 
 
 @given(_attr_value)
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=200, deadline=None, database=None)
 def test_fuzz_attribute_injection(value: str) -> None:
     payload = f"<div data-x=\"{value}\">content</div>"
     try:
