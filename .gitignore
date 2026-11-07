@@ -22,3 +22,5 @@ backend/aigent_checkpoints.db
 backend/.hypothesis/
 .pm/.runtime/
 .pm/index.db*
+.pm/changelog.md
+.pm/sessions.json
