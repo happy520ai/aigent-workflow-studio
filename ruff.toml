@@ -1,2 +1,0 @@
-line-length = 110
-exclude = ["main.py", "engine.py", "test_workflow_e2e.py"]
