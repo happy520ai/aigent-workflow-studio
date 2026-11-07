@@ -12,7 +12,8 @@ import asyncio
 import json
 import os
 import random
-from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
 import httpx
 
@@ -22,8 +23,8 @@ RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 class LLMClient:
     def __init__(
         self,
-        max_concurrency: Optional[int] = None,
-        timeout_s: Optional[float] = None,
+        max_concurrency: int | None = None,
+        timeout_s: float | None = None,
         max_retries: int = 2,
     ):
         concurrency = max_concurrency if max_concurrency is not None else int(os.getenv("LLM_MAX_CONCURRENCY", "2"))
@@ -44,15 +45,15 @@ class LLMClient:
         model: str,
         messages: list,
         max_tokens: int = 1024,
-        transport_factory: Optional[Callable[[], Awaitable[httpx.AsyncBaseTransport]]] = None,
-    ) -> Dict[str, Any]:
+        transport_factory: Callable[[], Awaitable[httpx.AsyncBaseTransport]] | None = None,
+    ) -> dict[str, Any]:
         attempt = 0
-        last_error: Optional[str] = None
+        last_error: str | None = None
         async with self._sem:
             while attempt <= self._max_retries:
                 attempt += 1
                 try:
-                    kwargs: Dict[str, Any] = {}
+                    kwargs: dict[str, Any] = {}
                     if transport_factory is not None:
                         kwargs["transport"] = await transport_factory()
                     async with httpx.AsyncClient(timeout=self._timeout, follow_redirects=False, **kwargs) as client:
@@ -91,15 +92,15 @@ class LLMClient:
         api_base: str,
         api_key: str,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         max_tokens: int = 1024,
-        transport_factory: Optional[Callable[[], Awaitable[httpx.AsyncBaseTransport]]] = None,
-    ) -> AsyncIterator[Dict[str, Any]]:
+        transport_factory: Callable[[], Awaitable[httpx.AsyncBaseTransport]] | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         """T31：SSE 流式对话。逐段 yield {delta, done, degraded, error}；结束段 done=True。
         单次尝试：任何失败以 degraded=True 收尾（由调用方走降级路径）。"""
         async with self._sem:
             try:
-                kwargs: Dict[str, Any] = {}
+                kwargs: dict[str, Any] = {}
                 if transport_factory is not None:
                     kwargs["transport"] = await transport_factory()
                 async with httpx.AsyncClient(timeout=self._timeout, follow_redirects=False, **kwargs) as client:

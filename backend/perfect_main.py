@@ -12,11 +12,10 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -48,7 +47,7 @@ class AddNodeRequest(BaseModel):
     component_id: str
     x: float = 460.0
     y: float = 520.0
-    connect_from: Optional[str] = None  # 可选：新节点接入的父节点 id
+    connect_from: str | None = None  # 可选：新节点接入的父节点 id
 
 
 class MoveNodeRequest(BaseModel):
@@ -127,7 +126,7 @@ def _admin_token() -> str:
     return os.getenv("AIGENT_ADMIN_TOKEN", "").strip()
 
 
-def _ws_allowed_origins() -> List[str]:
+def _ws_allowed_origins() -> list[str]:
     """WS Origin 白名单：与 CORS_ORIGINS 同源同默认（T11）"""
     return [
         o.strip()
@@ -139,7 +138,7 @@ def _ws_allowed_origins() -> List[str]:
     ]
 
 
-def _authenticate_websocket(websocket: WebSocket) -> Optional[int]:
+def _authenticate_websocket(websocket: WebSocket) -> int | None:
     """WS 握手鉴权：返回 None=通过；否则返回应使用的 close code。
     - Origin 校验独立于令牌：浏览器跨站 WS 攻击必带 Origin，非浏览器客户端（无 Origin）放行；
     - 令牌校验仅在配置 AIGENT_ADMIN_TOKEN 后启用：?token= 或 Sec-WebSocket-Protocol 子协议。"""
@@ -162,7 +161,7 @@ def _authenticate_websocket(websocket: WebSocket) -> Optional[int]:
 
 
 def _sign_resource(resource: str, exp_epoch: int, token: str) -> str:
-    return hmac.new(token.encode("utf-8"), f"{resource}:{exp_epoch}".encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.new(token.encode("utf-8"), f"{resource}:{exp_epoch}".encode(), hashlib.sha256).hexdigest()
 
 
 def _sign_live_app(exp_epoch: int, token: str) -> str:
@@ -257,10 +256,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class TokenBucketLimiter:
     """内存令牌桶（按 key 维度限流）。asyncio 单线程内 read-modify-write 无 await，天然原子。"""
 
-    def __init__(self, rate_per_min: int, capacity: Optional[int] = None):
+    def __init__(self, rate_per_min: int, capacity: int | None = None):
         self.rate_per_min = rate_per_min
         self.capacity = capacity if capacity is not None else max(1, rate_per_min)
-        self._buckets: Dict[str, tuple] = {}  # key -> (tokens, last_monotonic)
+        self._buckets: dict[str, tuple] = {}  # key -> (tokens, last_monotonic)
 
     def allow(self, key: str) -> bool:
         now = time.monotonic()
@@ -378,7 +377,7 @@ async def prometheus_metrics():
     )
 
 
-@app.get("/api/v1/components", response_model=List[ComponentItem])
+@app.get("/api/v1/components", response_model=list[ComponentItem])
 async def list_components(q: str = Query(default="")):
     if not q.strip():
         return engine.components
@@ -393,7 +392,7 @@ async def get_workflow():
 
 # ======================= T32：多工作流 CRUD（32a：表与 CRUD） =======================
 class CreateWorkflowRequest(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     name: str
 
 
@@ -451,10 +450,10 @@ EXPORT_SCHEMA_VERSION = 1
 def _validate_topology_payload(
     nodes: Any,
     edges: Any,
-    base_node_ids: Optional[set] = None,
+    base_node_ids: set | None = None,
     count_base_nodes: int = 0,
     count_base_edges: int = 0,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """T33/T34 共享校验：形状 / 类型白名单 / 重复 id / 悬空边 / 数量上限。失败抛 400。"""
     if not isinstance(nodes, list) or not isinstance(edges, list):
         raise HTTPException(status_code=400, detail="nodes/edges 必须为数组")
@@ -513,7 +512,7 @@ async def export_workflow(workflow_id: str):
 
 
 @app.post("/api/v1/workflows/{workflow_id}/import")
-async def import_workflow(workflow_id: str, payload: Dict[str, Any]):
+async def import_workflow(workflow_id: str, payload: dict[str, Any]):
     """导入工作流 JSON：schema 版本校验 + 节点类型白名单 + 数量上限 + 环检测，失败不改拓扑"""
     try:
         if payload.get("schema") != EXPORT_SCHEMA:
@@ -541,7 +540,7 @@ class AISuggestRequest(BaseModel):
     prompt: str
 
 
-def _extract_json_object(text: str) -> Dict[str, Any]:
+def _extract_json_object(text: str) -> dict[str, Any]:
     """从 LLM 回复中稳健提取首个 JSON 对象（容忍 markdown 围栏/前后闲话）；失败抛 ValueError"""
     t = (text or "").strip()
     if t.startswith("```"):
@@ -605,7 +604,7 @@ async def ai_suggest_nodes(req: AISuggestRequest):
     raw_nodes = suggestion.get("nodes") or []
     raw_edges = suggestion.get("edges") or []
 
-    def _normalize_ai_node(n: Any) -> Dict[str, Any]:
+    def _normalize_ai_node(n: Any) -> dict[str, Any]:
         """LLM 只给 x/y 等简写字段：补齐 WorkflowNode 必填结构（position/theme_color/config_json）"""
         n = dict(n)
         pos = {"x": float(n.pop("x", 460.0)), "y": float(n.pop("y", 520.0))}
@@ -696,7 +695,7 @@ class BatchPositionItem(BaseModel):
 
 
 class BatchPositionRequest(BaseModel):
-    positions: List[BatchPositionItem]
+    positions: list[BatchPositionItem]
 
 
 @app.patch("/api/v1/workflow/positions")
@@ -715,7 +714,7 @@ async def batch_update_positions(req: BatchPositionRequest):
 
 
 @app.put("/api/v1/workflow/nodes/{node_id}/config", response_model=WorkflowNode)
-async def update_node_config(node_id: str, config_json: Dict[str, Any]):
+async def update_node_config(node_id: str, config_json: dict[str, Any]):
     # T13：config_json 体积上限 64KB
     if len(json.dumps(config_json, ensure_ascii=False, default=str).encode("utf-8")) > CONFIG_JSON_MAX_BYTES:
         raise HTTPException(status_code=413, detail="config_json 超过 64KB 上限")

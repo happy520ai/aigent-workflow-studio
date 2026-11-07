@@ -4,7 +4,6 @@ import asyncio
 import httpx
 import pytest
 
-import llm_client as llm_mod
 from llm_client import LLMClient
 
 

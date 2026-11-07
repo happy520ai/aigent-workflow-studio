@@ -7,7 +7,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from perfect_engine import CheckpointStore, ConnectionManager, PerfectNeuralEngine
-from perfect_main import app, engine
+from perfect_main import app
 
 
 def run(coro):
@@ -50,7 +50,7 @@ def test_legacy_topology_table_migrates_to_default(tmp_path):
         )
         conn.commit()
     CheckpointStore(db_path=db)  # 迁移 schema
-    eng = PerfectNeuralEngine(ws_manager=ConnectionManager(), persist_topology=True)
+    PerfectNeuralEngine(ws_manager=ConnectionManager(), persist_topology=True)
     # 引擎级默认库不是 tmp——这里直接验证 store 层迁移结果
     # （引擎构造用全局 conftest 库；迁移逻辑单测在引擎持久化测试里覆盖）
     assert CheckpointStore(db_path=db).SCHEMA_VERSION >= 4

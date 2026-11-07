@@ -1,0 +1,107 @@
+# T65：CI 流水线（GitHub Actions）
+# 后端：ruff + pytest(+cov ≥80%) + pip-audit；前端：npm audit + tsc/vite + vitest；
+# Docker：双镜像构建；E2E：手动触发（workflow_dispatch）。
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "同时运行 Playwright E2E"
+        required: false
+        default: "false"
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: 安装依赖
+        run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+      - name: Lint (ruff)
+        working-directory: backend
+        run: python -m ruff check .
+      - name: 测试 + 覆盖率门槛（核心模块 ≥80%）
+        working-directory: backend
+        run: >
+          python -m pytest -q
+          --cov=perfect_engine --cov=perfect_main --cov=ast_validator
+          --cov=operator_registry --cov=llm_client --cov=metrics
+          --cov=net_guard --cov=obs_logging
+          --cov-report=term --cov-fail-under=80
+      - name: 依赖漏洞扫描 (pip-audit)
+        working-directory: backend
+        run: python -m pip_audit -r requirements.txt
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装依赖（lockfile 精确）
+        working-directory: frontend
+        run: npm ci
+      - name: 生产依赖漏洞扫描
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - name: 类型检查 + 构建（tsc && vite build）
+        working-directory: frontend
+        run: npm run check
+      - name: 单元测试（vitest）
+        working-directory: frontend
+        run: npx vitest run
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建后端镜像
+        run: docker build -t aigent-backend:ci backend
+      - name: 构建前端镜像
+        run: docker build -t aigent-frontend:ci frontend
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_e2e == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装依赖
+        run: |
+          pip install -r backend/requirements.txt
+          (cd frontend && npm ci)
+      - name: 安装 Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: 运行 E2E
+        working-directory: frontend
+        run: npx playwright test
+        env:
+          CI: "true"
+      - name: 归档截图与报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            docs/e2e-screenshots
+            frontend/playwright-report
+          retention-days: 14

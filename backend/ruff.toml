@@ -1,0 +1,6 @@
+line-length = 110
+exclude = ["main.py", "engine.py", "test_workflow_e2e.py", "scripts/real_inference_test.py"]
+
+[lint]
+# 生产代码需兜底盲捕获（防火墙语义）与脚本豁免，规则集按项目惯例收紧到下表
+ignore = ["BLE001", "S110", "RUF012", "PLW1510", "SIM117", "PIE810", "TRY401", "SIM118"]

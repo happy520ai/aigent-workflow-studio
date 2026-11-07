@@ -1,6 +1,7 @@
 # backend/models.py
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -21,7 +22,7 @@ class ControlAction(str, Enum):
 
 class ControlRequest(BaseModel):
     action: ControlAction
-    target_node_id: Optional[str] = None
+    target_node_id: str | None = None
 
 
 class ComponentItem(BaseModel):
@@ -58,8 +59,8 @@ class WorkflowNode(BaseModel):
     progress: float = 0.0
     confidence: float = 99.2
     latency_ms: int = 8
-    config_json: Dict[str, Any]
-    last_error: Optional[str] = None  # 单节点错误隔离：最近一次执行失败的异常信息
+    config_json: dict[str, Any]
+    last_error: str | None = None  # 单节点错误隔离：最近一次执行失败的异常信息
     degraded: bool = False  # T24：LLM 调用降级（用内置模板兜底）时置位，前端显示徽章
 
 
@@ -74,9 +75,9 @@ class NeuralEdge(BaseModel):
 
 
 class SystemTelemetry(BaseModel):
-    cpu_history: List[float]
-    memory_history: List[float]
-    ecg_waveform: List[float]
+    cpu_history: list[float]
+    memory_history: list[float]
+    ecg_waveform: list[float]
     radar_metrics: RadarMetrics
 
 
@@ -85,7 +86,7 @@ class WorkflowSnapshot(BaseModel):
     workflow_id: str = "default"  # T32：快照所属工作流（前端切换器数据源）
     project_status: WorkflowStatus
     selected_node_id: str
-    nodes: List[WorkflowNode]
-    edges: List[NeuralEdge]
+    nodes: list[WorkflowNode]
+    edges: list[NeuralEdge]
     telemetry: SystemTelemetry
-    terminal_logs: List[str]
+    terminal_logs: list[str]

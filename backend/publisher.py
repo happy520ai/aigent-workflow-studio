@@ -3,7 +3,7 @@ import io
 import json
 import zipfile
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 
 class WorkflowArtifactPublisher:
@@ -12,8 +12,8 @@ class WorkflowArtifactPublisher:
     @staticmethod
     def build_project_zip(
         sandbox_html: str,
-        workflow_snapshot: Dict[str, Any],
-        shared_memory_bus: Dict[str, Any],
+        workflow_snapshot: dict[str, Any],
+        shared_memory_bus: dict[str, Any],
     ) -> bytes:
         buffer = io.BytesIO()
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

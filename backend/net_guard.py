@@ -7,7 +7,6 @@
 import asyncio
 import ipaddress
 import socket
-from typing import Optional
 
 import httpx
 
@@ -64,7 +63,7 @@ async def resolve_and_pin_api_base(
         # IP 字面量：settings 校验已把关（内网/回环），或 AIGENT_ALLOW_PRIVATE_LLM 显式放行
         return api_base
     addr_infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
-    pinned_ipv4: Optional[str] = None
+    pinned_ipv4: str | None = None
     for info in addr_infos:
         ip_text = info[4][0]
         try:
@@ -86,7 +85,7 @@ class IPPinnedTransport(httpx.AsyncHTTPTransport):
     inner 参数供测试注入 httpx.MockTransport。
     """
 
-    def __init__(self, pinned_ip: str, inner: Optional[httpx.AsyncBaseTransport] = None):
+    def __init__(self, pinned_ip: str, inner: httpx.AsyncBaseTransport | None = None):
         super().__init__()
         self._pinned_ip = pinned_ip
         self._inner = inner

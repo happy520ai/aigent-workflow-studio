@@ -15,7 +15,7 @@ def api():
         yield c
 
 
-def _stub_llm(monkeypatch, content: str, ok: bool = True, error: str = None):
+def _stub_llm(monkeypatch, content: str, ok: bool = True, error: str | None = None):
     # 大多数用例需要 LLM 可用：默认注入测试 key（503 用例会自行覆盖为空）
     monkeypatch.setitem(perfect_main.engine.llm_config, "api_key", "sk-unit")
 

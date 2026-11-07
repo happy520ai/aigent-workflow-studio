@@ -2,7 +2,6 @@
 import asyncio
 
 import httpx
-import pytest
 
 from llm_client import LLMClient
 from perfect_engine import ConnectionManager, PerfectNeuralEngine

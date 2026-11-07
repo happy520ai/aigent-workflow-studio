@@ -2,11 +2,7 @@
 import asyncio
 import time
 
-import pytest
-from starlette.testclient import TestClient
-
 from perfect_engine import CheckpointStore, ConnectionManager, PerfectNeuralEngine
-from perfect_main import app
 
 
 def run(coro):

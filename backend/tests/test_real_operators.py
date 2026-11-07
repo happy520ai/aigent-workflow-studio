@@ -2,9 +2,7 @@
 import asyncio
 
 import httpx
-import pytest
 
-import operator_registry as op_mod
 from operator_registry import NeuralOperatorRegistry
 
 

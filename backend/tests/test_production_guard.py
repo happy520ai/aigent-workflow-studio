@@ -9,9 +9,8 @@ def test_production_requires_token_and_allowlist(monkeypatch):
     monkeypatch.setenv("AIGENT_ENV", "production")
     monkeypatch.delenv("AIGENT_ADMIN_TOKEN", raising=False)
     monkeypatch.delenv("LLM_API_BASE_ALLOWLIST", raising=False)
-    with pytest.raises(RuntimeError, match="缺少必需配置"):
-        with TestClient(app):
-            pass  # lifespan 进入即应失败
+    with pytest.raises(RuntimeError, match="缺少必需配置"), TestClient(app):
+        pass  # lifespan 进入即应失败
 
 
 def test_production_starts_with_full_config(monkeypatch):

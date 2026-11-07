@@ -1,10 +1,6 @@
 # tests/test_error_isolation.py —— A4：单节点错误隔离（error/skipped/兄弟正常）+ run_history + GET /runs
 import asyncio
 
-import pytest
-from starlette.testclient import TestClient
-
-import operator_registry
 from models import NeuralEdge
 from perfect_engine import ConnectionManager, PerfectNeuralEngine
 

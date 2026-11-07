@@ -31,13 +31,12 @@ def test_ws_open_without_token_when_unset(api, monkeypatch):
 def test_ws_requires_token_when_configured(api, monkeypatch):
     monkeypatch.setenv("AIGENT_ADMIN_TOKEN", TOKEN)
     # 无令牌 → 4401
-    with pytest.raises(WebSocketDisconnect) as ei:
-        with api.websocket_connect("/ws/telemetry") as ws:
-            ws.receive_json()
+    with pytest.raises(WebSocketDisconnect) as ei, api.websocket_connect("/ws/telemetry") as ws:
+        ws.receive_json()
     assert ei.value.code == 4401
     # 错误令牌 → 4401
     with pytest.raises(WebSocketDisconnect) as ei:
-        with api.websocket_connect(f"/ws/telemetry?token=wrong") as ws:
+        with api.websocket_connect("/ws/telemetry?token=wrong") as ws:
             ws.receive_json()
     assert ei.value.code == 4401
 
@@ -62,19 +61,17 @@ def test_ws_origin_whitelist(api, monkeypatch):
     ) as ws:
         _recv_snapshot(ws)
     # 非白名单 Origin → 4403
-    with pytest.raises(WebSocketDisconnect) as ei:
-        with api.websocket_connect(
-            "/ws/telemetry", headers={"Origin": "http://evil.example.com"}
-        ) as ws:
-            ws.receive_json()
+    with pytest.raises(WebSocketDisconnect) as ei, api.websocket_connect(
+        "/ws/telemetry", headers={"Origin": "http://evil.example.com"}
+    ) as ws:
+        ws.receive_json()
     assert ei.value.code == 4403
 
 
 def test_ws_origin_ok_but_bad_token_still_4401(api, monkeypatch):
     monkeypatch.setenv("AIGENT_ADMIN_TOKEN", TOKEN)
-    with pytest.raises(WebSocketDisconnect) as ei:
-        with api.websocket_connect(
-            "/ws/telemetry?token=wrong", headers={"Origin": "http://localhost:5173"}
-        ) as ws:
-            ws.receive_json()
+    with pytest.raises(WebSocketDisconnect) as ei, api.websocket_connect(
+        "/ws/telemetry?token=wrong", headers={"Origin": "http://localhost:5173"}
+    ) as ws:
+        ws.receive_json()
     assert ei.value.code == 4401

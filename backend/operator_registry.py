@@ -2,21 +2,21 @@
 import os
 import re
 import time
+from collections.abc import Callable, Coroutine
 from datetime import datetime
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from typing import Any
 
 import httpx
 
 from llm_client import LLMClient
 from net_guard import IPPinnedTransport, resolve_and_pin_api_base
 
-
-OperatorHandler = Callable[[Dict[str, Any], Dict[str, Any]], Coroutine[Any, Any, Dict[str, Any]]]
+OperatorHandler = Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, dict[str, Any]]]
 
 # 画布节点 type（前端 1:1 命名）到注册表内部算子 key 的别名归一化表：
 # 默认 5 个节点的 type 使用的英文名与 _handlers 的 key 不一致，execute 前必须先归一化，
 # 否则会全部落入 _op_default 兜底算子。
-_ALIASES: Dict[str, str] = {
+_ALIASES: dict[str, str] = {
     "event_capturer": "trig_events",
     "intent_agent": "agent_intent",
     "ui_generation": "agent_codegen",
@@ -28,7 +28,7 @@ _ALIASES: Dict[str, str] = {
 _REAL_OPERATORS = {"llm_generic", "http_request", "logic_transform"}
 
 
-def _get_path(ctx: Dict[str, Any], dotted: str, default: Any = None) -> Any:
+def _get_path(ctx: dict[str, Any], dotted: str, default: Any = None) -> Any:
     """按 a.b.0.c 点路径取值（支持 list 下标）；绝不 eval"""
     cur: Any = ctx
     for part in dotted.split("."):
@@ -48,7 +48,7 @@ def _get_path(ctx: Dict[str, Any], dotted: str, default: Any = None) -> Any:
 _TEMPLATE_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}")
 
 
-def _render_template(template: str, ctx: Dict[str, Any]) -> str:
+def _render_template(template: str, ctx: dict[str, Any]) -> str:
     """{{a.b.c}} 模板渲染：点路径取值转字符串；无匹配占位符原样保留"""
 
     def _sub(m: "re.Match[str]") -> str:
@@ -58,9 +58,9 @@ def _render_template(template: str, ctx: Dict[str, Any]) -> str:
     return _TEMPLATE_RE.sub(_sub, template)
 
 
-def _build_context(inputs: Dict[str, Any], bus: Dict[str, Any], cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _build_context(inputs: dict[str, Any], bus: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
     """模板/映射上下文：共享总线 + 上游输出（保留 节点id 层 且平铺合并，最后者胜）+ 本节点配置"""
-    ctx: Dict[str, Any] = dict(bus)
+    ctx: dict[str, Any] = dict(bus)
     for node_id, out in (inputs or {}).items():
         if isinstance(out, dict):
             ctx.update(out)
@@ -81,14 +81,14 @@ class NeuralOperatorRegistry:
 
     def __init__(
         self,
-        llm_config_provider: Optional[Callable[[], Dict[str, str]]] = None,
-        llm_transport_factory: Optional[Callable[[], Any]] = None,
-        http_transport_factory: Optional[Callable[[], Any]] = None,
+        llm_config_provider: Callable[[], dict[str, str]] | None = None,
+        llm_transport_factory: Callable[[], Any] | None = None,
+        http_transport_factory: Callable[[], Any] | None = None,
     ) -> None:
         self._llm_config_provider = llm_config_provider
         self._llm_transport_factory = llm_transport_factory
         self._http_transport_factory = http_transport_factory  # 测试注入 MockTransport
-        self._handlers: Dict[str, OperatorHandler] = {
+        self._handlers: dict[str, OperatorHandler] = {
             "trig_events": self._op_trig_events,
             "trig_schedule": self._op_trig_schedule,
             "perc_nlu": self._op_perc_nlu,
@@ -111,10 +111,10 @@ class NeuralOperatorRegistry:
     async def execute(
         self,
         operator_type: str,
-        node_config: Dict[str, Any],
-        shared_bus: Dict[str, Any],
-        inputs: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        node_config: dict[str, Any],
+        shared_bus: dict[str, Any],
+        inputs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         # 1. 别名归一化：画布节点 type -> 注册表算子 key；未知 type 保持原样落入 _op_default
         normalized = _ALIASES.get(operator_type, operator_type)
         handler = self._handlers.get(normalized, self._op_default)
@@ -127,7 +127,7 @@ class NeuralOperatorRegistry:
         return result
 
     # ---- T30 真实算子公共件 ----
-    def _llm_settings(self) -> Dict[str, str]:
+    def _llm_settings(self) -> dict[str, str]:
         if self._llm_config_provider is not None:
             return dict(self._llm_config_provider())
         return {
@@ -143,7 +143,7 @@ class NeuralOperatorRegistry:
         return IPPinnedTransport(pinned_ip=httpx.URL(pinned_url).host)
 
     # T30 真实算子 ①：LLM 通用文本生成（system/user 模板，变量取自上游 _inputs）
-    async def _op_llm_generic(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_llm_generic(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         ctx = _build_context(cfg.get("_inputs") or {}, bus, cfg)
         system_text = _render_template(str(cfg.get("system_template", "You are a helpful assistant.")), ctx)
         user_template = str(cfg.get("user_template", ""))
@@ -176,7 +176,7 @@ class NeuralOperatorRegistry:
     # T30 真实算子 ②：HTTP 请求（SSRF 防护 + 响应体上限）
     _HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}
 
-    async def _op_http_request(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_http_request(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         method = str(cfg.get("method", "GET")).upper()
         url = str(cfg.get("url", "")).strip()
         if method not in self._HTTP_METHODS:
@@ -217,10 +217,10 @@ class NeuralOperatorRegistry:
             return {"status": "request_failed", "confidence": 0.0, "output": {"error": str(exc)}}
 
     # T30 真实算子 ③：数据转换（可配置点路径/常量/模板映射，禁止 eval）
-    async def _op_logic_transform(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_logic_transform(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         ctx = _build_context(cfg.get("_inputs") or {}, bus, cfg)
-        mappings: List[Dict[str, Any]] = cfg.get("mappings") or []
-        transformed: Dict[str, Any] = {}
+        mappings: list[dict[str, Any]] = cfg.get("mappings") or []
+        transformed: dict[str, Any] = {}
         for m in mappings:
             target = str(m.get("target", "")).strip()
             if not target:
@@ -243,7 +243,7 @@ class NeuralOperatorRegistry:
 
 
     # 1. 触发器 (Triggers) -> 页面事件 (Events)
-    async def _op_trig_events(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_trig_events(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         event_payload = {
             "event_type": "DOM_INTERACTION_STREAM",
             "target_selector": cfg.get("selector", "#aigent-workbench-root"),
@@ -253,20 +253,20 @@ class NeuralOperatorRegistry:
         return {"status": "triggered", "confidence": 99.8, "output": event_payload}
 
     # 2. 触发器 (Triggers) -> 定时触发 (Schedule)
-    async def _op_trig_schedule(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_trig_schedule(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         cron_expr = cfg.get("cron", "*/5 * * * * *")
         bus["schedule_tick"] = {"cron": cron_expr, "tick_ts": datetime.now().isoformat()}
         return {"status": "scheduled", "confidence": 99.9, "output": bus["schedule_tick"]}
 
     # 3. 感知解析 (Perception) -> 自然语言理解 (NLU)
-    async def _op_perc_nlu(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_perc_nlu(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         tokens = ["构建", "赛博神经元", "前端监控卡片", "带实时波形"]
         nlu_result = {"intent_tokens": tokens, "sentiment": "directive", "embedding_dim": 1536}
         bus["nlu_context"] = nlu_result
         return {"status": "parsed", "confidence": 99.2, "output": nlu_result}
 
     # 4. 感知解析 (Perception) -> 视觉输入 (Vision)
-    async def _op_perc_vision(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_perc_vision(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         vision_layout = {
             "detected_regions": ["TopNavbar", "LeftSidebar", "NeuralCanvas", "RightInspector"],
             "dominant_palette": ["#070a12", "#10b981", "#38bdf8", "#a855f7"],
@@ -275,7 +275,7 @@ class NeuralOperatorRegistry:
         return {"status": "analyzed", "confidence": 98.9, "output": vision_layout}
 
     # 5. AI 智能体 (Agents) -> 意图分析 (Intent Agent)
-    async def _op_agent_intent(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_agent_intent(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         routing = {
             "primary_intent": "GENERATE_REACTIVE_UI_COMPONENT",
             "fanout_targets": ["node_ui_gen", "node_co_agent", "node_dom_renderer"],
@@ -285,7 +285,7 @@ class NeuralOperatorRegistry:
         return {"status": "routed", "confidence": 99.2, "output": routing}
 
     # 6. AI 智能体 (Agents) -> 代码生成 (CodeGen)
-    async def _op_agent_codegen(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_agent_codegen(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         component_name = cfg.get("name", "AgentTelemetryCard").replace(".", "_")
         generated_tsx = f"""export const {component_name} = () => (
   <div className="p-4 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-slate-100">
@@ -299,7 +299,7 @@ class NeuralOperatorRegistry:
     # 7. 数据逻辑 (Logic) -> 数据转换 (Transform)：真实实现见上方 _op_logic_transform（T30）
 
     # 8. 数据逻辑 (Logic) -> 状态管理 (State)
-    async def _op_logic_state(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_logic_state(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         store_slice = {
             "store_engine": "Zustand_Neural_Slice",
             "hydration_state": "SYNCHRONIZED",
@@ -309,7 +309,7 @@ class NeuralOperatorRegistry:
         return {"status": "synced", "confidence": 99.4, "output": store_slice}
 
     # 9. 前端渲染 (Frontend) -> 组件装配 (Assemble)
-    async def _op_fe_assemble(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_fe_assemble(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         upstream_inputs = cfg.get("_inputs") or {}
         bundle = {
             "imports": ["React", "lucide-react", "TailwindCSS"],
@@ -321,7 +321,7 @@ class NeuralOperatorRegistry:
         return {"status": "assembled", "confidence": 99.1, "output": bundle}
 
     # 10. 前端渲染 (Frontend) -> DOM 渲染 (Render)
-    async def _op_fe_render(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_fe_render(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         upstream_inputs = cfg.get("_inputs") or {}
         render_stats = {
             "vdom_diff_ms": 1.8,
@@ -334,7 +334,7 @@ class NeuralOperatorRegistry:
         return {"status": "success", "confidence": 99.2, "output": render_stats}
 
     # 11. 部署 (Deploy) -> 沙盒测试 (Test)
-    async def _op_dep_test(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_dep_test(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         test_report = {
             "unit_tests_passed": 18,
             "xss_sanitized": True,
@@ -344,7 +344,7 @@ class NeuralOperatorRegistry:
         return {"status": "passed", "confidence": 99.6, "output": test_report}
 
     # 12. 部署 (Deploy) -> 发布 (Publish)
-    async def _op_dep_publish(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_dep_publish(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         publish_meta = {
             "cdn_edge_nodes": 12,
             "release_tag": f"v2.8.{datetime.now().strftime('%H%M%S')}",
@@ -353,5 +353,5 @@ class NeuralOperatorRegistry:
         bus["publish_receipt"] = publish_meta
         return {"status": "published", "confidence": 99.9, "output": publish_meta}
 
-    async def _op_default(self, cfg: Dict[str, Any], bus: Dict[str, Any]) -> Dict[str, Any]:
+    async def _op_default(self, cfg: dict[str, Any], bus: dict[str, Any]) -> dict[str, Any]:
         return {"status": "active", "confidence": 99.2, "output": cfg}

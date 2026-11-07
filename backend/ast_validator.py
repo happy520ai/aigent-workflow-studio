@@ -1,7 +1,7 @@
 # backend/ast_validator.py
 import re
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Tuple
+
 from pydantic import BaseModel
 
 
@@ -17,7 +17,7 @@ class ASTValidationReport(BaseModel):
     dom_depth: int
     element_count: int
     tailwind_class_count: int
-    diagnostics: List[ASTDiagnostic]
+    diagnostics: list[ASTDiagnostic]
     healed_code: str
 
 
@@ -31,13 +31,13 @@ class _DOMTreeAnalyzer(HTMLParser):
 
     def __init__(self) -> None:
         super().__init__()
-        self.tag_stack: List[Tuple[str, int]] = []
+        self.tag_stack: list[tuple[str, int]] = []
         self.max_depth: int = 0
         self.element_count: int = 0
-        self.tailwind_classes: List[str] = []
-        self.diagnostics: List[ASTDiagnostic] = []
+        self.tailwind_classes: list[str] = []
+        self.diagnostics: list[ASTDiagnostic] = []
 
-    def handle_starttag(self, tag: str, attrs: List[Tuple[str, str | None]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.element_count += 1
         line_no, _ = self.getpos()
 
@@ -56,8 +56,7 @@ class _DOMTreeAnalyzer(HTMLParser):
 
         if tag.lower() not in self.VOID_ELEMENTS:
             self.tag_stack.append((tag, line_no))
-            if len(self.tag_stack) > self.max_depth:
-                self.max_depth = len(self.tag_stack)
+            self.max_depth = max(self.max_depth, len(self.tag_stack))
 
     def handle_endtag(self, tag: str) -> None:
         line_no, _ = self.getpos()
@@ -106,7 +105,7 @@ class FrontendASTValidator:
 
     @classmethod
     def validate_and_heal(cls, raw_code: str) -> ASTValidationReport:
-        diagnostics: List[ASTDiagnostic] = []
+        diagnostics: list[ASTDiagnostic] = []
         sanitized = raw_code.strip()
 
         # 1. 剥离 Markdown 代码围栏（防止大模型输出 ```html ... ```）

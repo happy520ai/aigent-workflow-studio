@@ -55,7 +55,7 @@ check("PUT 节点 JSON 配置热更新", put["config_json"].get("role") == "patc
 runs = rest("GET", "/api/v1/runs?limit=5")
 check("GET /api/v1/runs 返回运行记录列表", isinstance(runs, list))
 
-from urllib.error import HTTPError  # noqa: E402
+from urllib.error import HTTPError
 
 try:
     rest("POST", "/api/v1/workflow/edges", {"source": "node_ui_gen", "target": "node_ui_gen"})
@@ -67,7 +67,7 @@ llm = rest("GET", "/api/v1/settings/llm")
 check("GET /settings/llm 不回显 api_key 字段", "api_key" not in llm)
 
 # ---------- WebSocket 实时流（引擎全速运行中） ----------
-from websockets.sync.client import connect  # noqa: E402
+from websockets.sync.client import connect
 
 try:
     with connect(WS_URL, open_timeout=5) as ws:

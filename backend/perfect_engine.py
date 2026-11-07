@@ -1,7 +1,6 @@
 # backend/perfect_engine.py
 import asyncio
 import json
-import math
 import os
 import random
 import sqlite3
@@ -11,7 +10,7 @@ import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import httpx
 import psutil
@@ -19,19 +18,20 @@ from fastapi import WebSocket
 
 from ast_validator import FrontendASTValidator
 from llm_client import LLMClient
-from net_guard import IPPinnedTransport, resolve_and_pin_api_base  # T12 工具再导出（兼容既有导入方）
 from metrics import metrics
-from obs_logging import get_logger
 from models import (
     ComponentItem,
     ControlAction,
     NeuralEdge,
-    NodePosition,    RadarMetrics,
+    NodePosition,
+    RadarMetrics,
     SystemTelemetry,
     WorkflowNode,
     WorkflowSnapshot,
     WorkflowStatus,
 )
+from net_guard import IPPinnedTransport, resolve_and_pin_api_base  # T12 工具再导出（兼容既有导入方）
+from obs_logging import get_logger
 from operator_registry import NeuralOperatorRegistry
 
 logger = get_logger("aigent.engine")
@@ -62,7 +62,7 @@ class CheckpointStore:
     # v3=runs 运行记录持久化表（T26，重启不丢）；v4=workflows 多工作流表 + checkpoints.workflow_id（T32）
     SCHEMA_VERSION = 4
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         # db_path 缺省时优先取环境变量 AIGENT_DB_PATH，再回落到工作目录默认库
         self.db_path = db_path or os.getenv("AIGENT_DB_PATH") or "aigent_checkpoints.db"
         self._init_db()
@@ -130,25 +130,24 @@ class CheckpointStore:
                 conn.execute("ALTER TABLE checkpoints ADD COLUMN workflow_id TEXT DEFAULT ''")
 
     def _init_db(self) -> None:
-        with SQLITE_WRITE_LOCK:
-            with sqlite_connect(self.db_path) as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-                row = conn.execute("SELECT version FROM schema_version").fetchone()
-                current = int(row[0]) if row else 0
-                self._migrate(conn, current)
-                if row:
-                    conn.execute("UPDATE schema_version SET version = ?", (self.SCHEMA_VERSION,))
-                else:
-                    conn.execute("INSERT INTO schema_version (version) VALUES (?)", (self.SCHEMA_VERSION,))
-                conn.commit()
+        with SQLITE_WRITE_LOCK, sqlite_connect(self.db_path) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+            row = conn.execute("SELECT version FROM schema_version").fetchone()
+            current = int(row[0]) if row else 0
+            self._migrate(conn, current)
+            if row:
+                conn.execute("UPDATE schema_version SET version = ?", (self.SCHEMA_VERSION,))
+            else:
+                conn.execute("INSERT INTO schema_version (version) VALUES (?)", (self.SCHEMA_VERSION,))
+            conn.commit()
 
     async def save_checkpoint(
         self,
         run_id: str,
         node_id: str,
-        state_payload: Dict[str, Any],
+        state_payload: dict[str, Any],
         generated_code: str,
-        topology: Optional[Dict[str, Any]] = None,
+        topology: dict[str, Any] | None = None,
         workflow_id: str = "",
     ) -> str:
         checkpoint_id = f"ckpt_{uuid.uuid4().hex[:8]}"
@@ -180,8 +179,8 @@ class CheckpointStore:
         await asyncio.to_thread(_insert)
         return checkpoint_id
 
-    async def list_checkpoints(self, limit: int = 20) -> List[Dict[str, Any]]:
-        def _query() -> List[Dict[str, Any]]:
+    async def list_checkpoints(self, limit: int = 20) -> list[dict[str, Any]]:
+        def _query() -> list[dict[str, Any]]:
             with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
@@ -210,16 +209,15 @@ class CheckpointStore:
         started_at: str,
         finished_at: str,
         status: str,
-        nodes: List[Dict[str, Any]],
+        nodes: list[dict[str, Any]],
     ) -> None:
         """T26：持久化一轮 DAG 运行记录（重启后 /api/v1/runs 仍有数据）"""
         nodes_str = json.dumps(nodes, ensure_ascii=False)
 
         def _insert() -> None:
-            with SQLITE_WRITE_LOCK:
-                with sqlite_connect(self.db_path) as conn:
-                    conn.execute(
-                        """
+            with SQLITE_WRITE_LOCK, sqlite_connect(self.db_path) as conn:
+                conn.execute(
+                    """
                         INSERT INTO runs (round_id, run_id, started_at, finished_at, status, nodes_json)
                         VALUES (?, ?, ?, ?, ?, ?)
                         ON CONFLICT(round_id) DO UPDATE SET
@@ -229,29 +227,28 @@ class CheckpointStore:
                             status = excluded.status,
                             nodes_json = excluded.nodes_json
                         """,
-                        (round_id, run_id, started_at, finished_at, status, nodes_str),
-                    )
-                    # 只保留最近 50 轮
-                    conn.execute(
-                        """
+                    (round_id, run_id, started_at, finished_at, status, nodes_str),
+                )
+                # 只保留最近 50 轮
+                conn.execute(
+                    """
                         DELETE FROM runs WHERE round_id NOT IN
                         (SELECT round_id FROM runs ORDER BY finished_at DESC LIMIT 50)
                         """
-                    )
-                    conn.commit()
+                )
+                conn.commit()
 
         await asyncio.to_thread(_insert)
 
     # ======================= T32：多工作流持久化 CRUD =======================
-    async def save_workflow(self, workflow_id: str, name: str, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> None:
+    async def save_workflow(self, workflow_id: str, name: str, nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> None:
         nodes_str = json.dumps(nodes, ensure_ascii=False)
         edges_str = json.dumps(edges, ensure_ascii=False)
 
         def _upsert() -> None:
-            with SQLITE_WRITE_LOCK:
-                with sqlite_connect(self.db_path) as conn:
-                    conn.execute(
-                        """
+            with SQLITE_WRITE_LOCK, sqlite_connect(self.db_path) as conn:
+                conn.execute(
+                    """
                         INSERT INTO workflows (id, name, nodes_json, edges_json, updated_at)
                         VALUES (?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
@@ -260,14 +257,14 @@ class CheckpointStore:
                             edges_json = excluded.edges_json,
                             updated_at = excluded.updated_at
                         """,
-                        (workflow_id, name, nodes_str, edges_str, datetime.now().isoformat()),
-                    )
-                    conn.commit()
+                    (workflow_id, name, nodes_str, edges_str, datetime.now().isoformat()),
+                )
+                conn.commit()
 
         await asyncio.to_thread(_upsert)
 
-    async def list_workflows(self) -> List[Dict[str, Any]]:
-        def _query() -> List[Dict[str, Any]]:
+    async def list_workflows(self) -> list[dict[str, Any]]:
+        def _query() -> list[dict[str, Any]]:
             with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
@@ -277,8 +274,8 @@ class CheckpointStore:
 
         return await asyncio.to_thread(_query)
 
-    async def get_workflow_row(self, workflow_id: str) -> Optional[Dict[str, Any]]:
-        def _query() -> Optional[Dict[str, Any]]:
+    async def get_workflow_row(self, workflow_id: str) -> dict[str, Any] | None:
+        def _query() -> dict[str, Any] | None:
             with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 row = conn.execute(
@@ -299,18 +296,17 @@ class CheckpointStore:
 
     async def delete_workflow_row(self, workflow_id: str) -> bool:
         def _delete() -> bool:
-            with SQLITE_WRITE_LOCK:
-                with sqlite_connect(self.db_path) as conn:
-                    cur = conn.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
-                    conn.commit()
-                    return cur.rowcount > 0
+            with SQLITE_WRITE_LOCK, sqlite_connect(self.db_path) as conn:
+                cur = conn.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
+                conn.commit()
+                return cur.rowcount > 0
 
         return await asyncio.to_thread(_delete)
 
-    async def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
+    async def list_runs(self, limit: int = 20) -> list[dict[str, Any]]:
         """T26：按时间倒序读运行记录（与内存 run_history 行结构兼容：round_id/started_at/finished_at/nodes）"""
 
-        def _query() -> List[Dict[str, Any]]:
+        def _query() -> list[dict[str, Any]]:
             with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
@@ -331,10 +327,10 @@ class CheckpointStore:
 
         return await asyncio.to_thread(_query)
 
-    async def get_checkpoint(self, checkpoint_id: str) -> Optional[Dict[str, Any]]:
+    async def get_checkpoint(self, checkpoint_id: str) -> dict[str, Any] | None:
         """按 id 精确取回断点完整行（含 topology_json），不再受 list 窗口限制"""
 
-        def _query() -> Optional[Dict[str, Any]]:
+        def _query() -> dict[str, Any] | None:
             with sqlite_connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 row = conn.execute(
@@ -361,7 +357,7 @@ class ConnectionManager:
     """全双工 WebSocket 神经突触广播中心"""
 
     def __init__(self) -> None:
-        self.active_connections: Set[WebSocket] = set()
+        self.active_connections: set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket, accept: bool = True) -> None:
         # accept=False 供端点先完成握手并鉴权后登记连接（T11 WS 鉴权）
@@ -383,7 +379,7 @@ class ConnectionManager:
             },
             ensure_ascii=False,
         )
-        dead: Set[WebSocket] = set()
+        dead: set[WebSocket] = set()
         for ws in self.active_connections:
             try:
                 await ws.send_text(message)
@@ -397,9 +393,9 @@ class ConnectionManager:
 class WorkflowState:
     """T32：单个工作流的隔离状态（节点/连线/总线/输出/运行记录/断点游标）"""
 
-    nodes: Dict[str, "WorkflowNode"] = field(default_factory=dict)
-    edges: List["NeuralEdge"] = field(default_factory=list)
-    shared_memory_bus: Dict[str, Any] = field(
+    nodes: dict[str, "WorkflowNode"] = field(default_factory=dict)
+    edges: list["NeuralEdge"] = field(default_factory=list)
+    shared_memory_bus: dict[str, Any] = field(
         default_factory=lambda: {
             "last_event": "USER_CLICK_GENERATE_DASHBOARD",
             "intent": "create_cyber_analytics_card",
@@ -407,7 +403,7 @@ class WorkflowState:
             "dom_hydration_status": "READY",
         }
     )
-    node_outputs: Dict[str, Any] = field(default_factory=dict)
+    node_outputs: dict[str, Any] = field(default_factory=dict)
     run_history: deque = field(default_factory=lambda: deque(maxlen=20))
     recent_executions: deque = field(default_factory=lambda: deque(maxlen=50))
     selected_node_id: str = "node_ui_gen"
@@ -435,7 +431,7 @@ class PerfectNeuralEngine:
         self.status: WorkflowStatus = WorkflowStatus.RUNNING
 
         # 运行时大模型配置（可通过前端设置面板动态热更新）
-        self.llm_config: Dict[str, str] = {
+        self.llm_config: dict[str, str] = {
             "api_key": os.getenv("LLM_API_KEY", "").strip(),
             "api_base": os.getenv("LLM_API_BASE", "https://api.openai.com/v1").rstrip("/"),
             "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
@@ -447,7 +443,7 @@ class PerfectNeuralEngine:
         self._debug_step_gate = asyncio.Event()
 
         # T32：多工作流状态容器与激活指针
-        self._workflows: Dict[str, WorkflowState] = {}
+        self._workflows: dict[str, WorkflowState] = {}
         self.active_workflow_id: str = self.DEFAULT_WORKFLOW_ID
         self._workflows[self.DEFAULT_WORKFLOW_ID] = WorkflowState(
             current_run_id=f"run_{uuid.uuid4().hex[:6]}",
@@ -457,16 +453,16 @@ class PerfectNeuralEngine:
         # T27：ECG 波形的数据源改为真实指标——最近一轮 DAG 总耗时（ms），遥测每 0.5s 归一化采样
         self.last_round_latency_ms: float = 0.0
 
-        self._engine_task: Optional[asyncio.Task] = None
-        self._telemetry_task: Optional[asyncio.Task] = None
+        self._engine_task: asyncio.Task | None = None
+        self._telemetry_task: asyncio.Task | None = None
         self._phase: float = 0.0
         # T20/T25：健康看护——最近一次心跳（time.monotonic）与两个循环的连续失败计数
-        self.last_tick_monotonic: Optional[float] = None
-        self.loop_failure_counts: Dict[str, int] = {"dag": 0, "telemetry": 0}
+        self.last_tick_monotonic: float | None = None
+        self.loop_failure_counts: dict[str, int] = {"dag": 0, "telemetry": 0}
 
-        self.cpu_history: List[float] = [32.0, 45.0, 28.0, 64.0, 41.0, 53.0, 38.0, 62.0, 49.0, 55.0]
-        self.memory_history: List[float] = [58.0, 58.5, 59.2, 58.8, 60.1, 59.5, 60.4, 60.0, 61.2, 60.8]
-        self.ecg_waveform: List[float] = [0.0] * 10  # T27：真实指标初始为平线（无轮次数据）
+        self.cpu_history: list[float] = [32.0, 45.0, 28.0, 64.0, 41.0, 53.0, 38.0, 62.0, 49.0, 55.0]
+        self.memory_history: list[float] = [58.0, 58.5, 59.2, 58.8, 60.1, 59.5, 60.4, 60.0, 61.2, 60.8]
+        self.ecg_waveform: list[float] = [0.0] * 10  # T27：真实指标初始为平线（无轮次数据）
         self.radar_metrics = RadarMetrics(
             radar_perception=92.0,
             responsiveness=96.5,
@@ -474,7 +470,7 @@ class PerfectNeuralEngine:
             concurrency=88.0,
             stability=95.4,
         )
-        self.terminal_logs: List[str] = [
+        self.terminal_logs: list[str] = [
             "Agent initialized: 99.2%...",
             "Agent initialized: 99.2%...",
             "Agent initialized: 99.2%...",
@@ -487,7 +483,7 @@ class PerfectNeuralEngine:
             "[System] Deploying to Sandbox...",
         ]
 
-        self.components: List[ComponentItem] = self._init_components()
+        self.components: list[ComponentItem] = self._init_components()
         self.nodes = self._init_nodes()  # 经 property 写入激活工作流
         self.edges = self._init_edges()
 
@@ -501,35 +497,35 @@ class PerfectNeuralEngine:
         return self._workflows[self.active_workflow_id]
 
     @property
-    def nodes(self) -> Dict[str, "WorkflowNode"]:
+    def nodes(self) -> dict[str, "WorkflowNode"]:
         return self._active.nodes
 
     @nodes.setter
-    def nodes(self, value: Dict[str, "WorkflowNode"]) -> None:
+    def nodes(self, value: dict[str, "WorkflowNode"]) -> None:
         self._active.nodes = value
 
     @property
-    def edges(self) -> List["NeuralEdge"]:
+    def edges(self) -> list["NeuralEdge"]:
         return self._active.edges
 
     @edges.setter
-    def edges(self, value: List["NeuralEdge"]) -> None:
+    def edges(self, value: list["NeuralEdge"]) -> None:
         self._active.edges = value
 
     @property
-    def shared_memory_bus(self) -> Dict[str, Any]:
+    def shared_memory_bus(self) -> dict[str, Any]:
         return self._active.shared_memory_bus
 
     @shared_memory_bus.setter
-    def shared_memory_bus(self, value: Dict[str, Any]) -> None:
+    def shared_memory_bus(self, value: dict[str, Any]) -> None:
         self._active.shared_memory_bus = value
 
     @property
-    def node_outputs(self) -> Dict[str, Any]:
+    def node_outputs(self) -> dict[str, Any]:
         return self._active.node_outputs
 
     @node_outputs.setter
-    def node_outputs(self, value: Dict[str, Any]) -> None:
+    def node_outputs(self, value: dict[str, Any]) -> None:
         self._active.node_outputs = value
 
     @property
@@ -589,10 +585,10 @@ class PerfectNeuralEngine:
         self._active.cycle_layer_hit = value
 
     # ======================= T32：工作流切换 =======================
-    def topology_has_cycle(self, nodes_data: List[Dict[str, Any]], edges_data: List[Dict[str, Any]]) -> bool:
+    def topology_has_cycle(self, nodes_data: list[dict[str, Any]], edges_data: list[dict[str, Any]]) -> bool:
         """T33：对任意外部拓扑数据做 Kahn 环检测（导入校验用，不触碰引擎状态）"""
-        adj: Dict[str, List[str]] = defaultdict(list)
-        indeg: Dict[str, int] = {str(n.get("id")): 0 for n in nodes_data}
+        adj: dict[str, list[str]] = defaultdict(list)
+        indeg: dict[str, int] = {str(n.get("id")): 0 for n in nodes_data}
         for e in edges_data:
             src, dst = str(e.get("source")), str(e.get("target"))
             if src in indeg and dst in indeg:
@@ -784,7 +780,7 @@ class PerfectNeuralEngine:
   </div>
 </div>"""
 
-    def _init_components(self) -> List[ComponentItem]:
+    def _init_components(self) -> list[ComponentItem]:
         return [
             ComponentItem(id="trig_events", category="触发器", category_en="Triggers", name="页面事件", name_en="Events", icon="Zap", theme_color="#10b981"),
             ComponentItem(id="trig_schedule", category="触发器", category_en="Triggers", name="定时触发", name_en="Schedule", icon="Clock", theme_color="#10b981"),
@@ -802,7 +798,7 @@ class PerfectNeuralEngine:
             ComponentItem(id="dep_publish", category="部署", category_en="Deploy", name="发布", name_en="Publish", icon="Rocket", theme_color="#ec4899"),
         ]
 
-    def _init_nodes(self) -> Dict[str, WorkflowNode]:
+    def _init_nodes(self) -> dict[str, WorkflowNode]:
         base_cfg = {
             "name": "Agentinightik.eod",
             "anenet5": {
@@ -883,7 +879,7 @@ class PerfectNeuralEngine:
         ]
         return {n.id: n for n in items}
 
-    def _init_edges(self) -> List[NeuralEdge]:
+    def _init_edges(self) -> list[NeuralEdge]:
         return [
             NeuralEdge(id="edge_1_2", source="node_event_capturer", target="node_intent_agent", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
             NeuralEdge(id="edge_2_3a", source="node_intent_agent", target="node_ui_gen", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
@@ -891,9 +887,9 @@ class PerfectNeuralEngine:
             NeuralEdge(id="edge_2_3c", source="node_intent_agent", target="node_dom_renderer", latency_ms=8, confidence_pct=99.2, connection_status="已连接", active_pulse=True),
         ]
 
-    def compile_topological_layers(self) -> List[List[str]]:
-        in_degree: Dict[str, int] = {nid: 0 for nid in self.nodes}
-        adj: Dict[str, List[str]] = defaultdict(list)
+    def compile_topological_layers(self) -> list[list[str]]:
+        in_degree: dict[str, int] = {nid: 0 for nid in self.nodes}
+        adj: dict[str, list[str]] = defaultdict(list)
 
         for edge in self.edges:
             if edge.source in self.nodes and edge.target in self.nodes:
@@ -901,7 +897,7 @@ class PerfectNeuralEngine:
                 in_degree[edge.target] += 1
 
         queue = deque([nid for nid, deg in in_degree.items() if deg == 0])
-        layers: List[List[str]] = []
+        layers: list[list[str]] = []
         visited_count = 0
 
         while queue:
@@ -928,7 +924,7 @@ class PerfectNeuralEngine:
         """判断新增 source->target 连线是否会成环：从 target 沿现有边 DFS，能回到 source 即为真"""
         if source not in self.nodes or target not in self.nodes:
             return False
-        seen: Set[str] = set()
+        seen: set[str] = set()
         frontier = [target]
         while frontier:
             cur = frontier.pop()
@@ -942,9 +938,9 @@ class PerfectNeuralEngine:
                     frontier.append(e.target)
         return False
 
-    def _failed_downstream(self, failed: Set[str]) -> Set[str]:
+    def _failed_downstream(self, failed: set[str]) -> set[str]:
         """计算失败节点的全部传递下游（沿边 BFS 可达），用于单节点错误隔离的 skipped 标记"""
-        reach: Set[str] = set()
+        reach: set[str] = set()
         frontier = list(failed)
         while frontier:
             cur = frontier.pop()
@@ -974,7 +970,7 @@ class PerfectNeuralEngine:
         api_key = self.llm_config.get("api_key", "")
 
         # 0. 收集上游节点最近输出作为本节点输入（数据真正沿连线流动）
-        inputs: Dict[str, Any] = {
+        inputs: dict[str, Any] = {
             e.source: self.node_outputs.get(e.source)
             for e in self.edges
             if e.target == node.id and e.source in self.nodes
@@ -1013,8 +1009,8 @@ class PerfectNeuralEngine:
                         ),
                     },
                 ]
-                result_parts: List[str] = []
-                stream_error: Optional[str] = None
+                result_parts: list[str] = []
+                stream_error: str | None = None
                 async for chunk in llm.chat_completion_stream(
                     api_base=self.llm_config["api_base"],
                     api_key=api_key,
@@ -1146,12 +1142,12 @@ class PerfectNeuralEngine:
                 "[Warn] 检测到环路拓扑：环上节点作为反馈层兜底执行 (Cyclic Agent Graph)"
             )
 
-        failed: Set[str] = set()
-        node_records: List[Dict[str, Any]] = []
+        failed: set[str] = set()
+        node_records: list[dict[str, Any]] = []
         blocked = self._failed_downstream(failed)  # 初始为空集
 
         for layer_nodes in layers:
-            runnable: List[WorkflowNode] = []
+            runnable: list[WorkflowNode] = []
             for nid in layer_nodes:
                 if nid not in self.nodes:
                     continue
@@ -1286,7 +1282,7 @@ class PerfectNeuralEngine:
                 self.loop_failure_counts["telemetry"] += 1  # T25：计数不吞
                 await asyncio.sleep(0.5)
 
-    def readiness(self) -> Dict[str, Any]:
+    def readiness(self) -> dict[str, Any]:
         """T20/T25 就绪探针数据：SQLite 可写 + 两个循环 task 存活 + 最近心跳 < 5s + 无连续异常。
         不泄露内部细节（不含 db 路径、密钥、拓扑）。"""
         sqlite_ok = True
@@ -1395,7 +1391,7 @@ class PerfectNeuralEngine:
         return snap
 
     async def add_custom_node_from_sidebar(
-        self, comp_id: str, x: float, y: float, connect_from: Optional[str] = None
+        self, comp_id: str, x: float, y: float, connect_from: str | None = None
     ) -> WorkflowNode:
         comp = next((c for c in self.components if c.id == comp_id), None)
         if not comp:
@@ -1420,7 +1416,7 @@ class PerfectNeuralEngine:
         )
         self.nodes[new_id] = new_node
         # 连接策略：显式 connect_from 优先；否则默认挂到意图识别智能体（保持原行为）；均不可用则不建边
-        link_source: Optional[str] = None
+        link_source: str | None = None
         if connect_from and connect_from in self.nodes:
             link_source = connect_from
         elif "node_intent_agent" in self.nodes:

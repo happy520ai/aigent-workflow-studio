@@ -11,14 +11,14 @@ import os
 import re
 import sys
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="")
 run_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", default="")
 node_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("node_id", default="")
 
 # 形态抹除（与具体值无关）：sk- 类密钥、Bearer、X-Admin-Token、URL token 参数
-_REDACT_PATTERNS: List[re.Pattern] = [
+_REDACT_PATTERNS: list[re.Pattern] = [
     re.compile(r"sk-[A-Za-z0-9_\-]{6,}"),
     re.compile(r"(Bearer\s+)[^\s'\"]+", re.IGNORECASE),
     re.compile(r"(X-Admin-Token\s*[:=]\s*)[^\s,;'\"]+", re.IGNORECASE),
@@ -39,10 +39,9 @@ def redact_secrets(text: str) -> str:
         out = out.replace(admin_token, _REDACTED)
     try:
         # 延迟导入避免循环依赖（perfect_engine 不反向依赖本模块的场合也不受影响）
-        from perfect_engine import PerfectNeuralEngine  # noqa: F401
-
         # 遍历已创建实例成本高，这里只抹模块单例的 key（生产路径即它）
         import perfect_main
+        from perfect_engine import PerfectNeuralEngine  # noqa: F401
 
         api_key = (perfect_main.engine.llm_config.get("api_key") or "").strip()
         if api_key and api_key in out:
@@ -69,7 +68,7 @@ class JsonFormatter(logging.Formatter):
     """一行一条 JSON：ts/level/logger/message + request_id/run_id/node_id"""
 
     def format(self, record: logging.LogRecord) -> str:
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "ts": datetime.fromtimestamp(record.created).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
             "level": record.levelname,
             "logger": record.name,

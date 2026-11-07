@@ -94,4 +94,4 @@ def test_concurrent_writes_serialized(tmp_path):
 
 def test_write_lock_is_reentrant_safe():
     # SQLITE_WRITE_LOCK 为 threading.Lock，写路径均短临界区；此断言防误改为不可重入的进程级错误语义
-    assert not isinstance(SQLITE_WRITE_LOCK, type(None))
+    assert not (SQLITE_WRITE_LOCK is None)

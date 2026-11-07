@@ -4,7 +4,6 @@
 import threading
 import time
 from collections import defaultdict, deque
-from typing import Dict, List, Tuple
 
 ROUND_LATENCY_BUCKETS_MS = (10, 25, 50, 100, 250, 500, 1000, 2500, 5000)
 LLM_OUTCOMES = ("success", "failure", "degraded")
@@ -13,10 +12,10 @@ LLM_OUTCOMES = ("success", "failure", "degraded")
 class MetricsRegistry:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._node_exec_total: Dict[Tuple[str, str], int] = defaultdict(int)
-        self._node_latency_ms_sum: Dict[str, float] = defaultdict(float)
-        self._node_latency_ms_count: Dict[str, int] = defaultdict(int)
-        self._llm_calls: Dict[str, int] = {o: 0 for o in LLM_OUTCOMES}
+        self._node_exec_total: dict[tuple[str, str], int] = defaultdict(int)
+        self._node_latency_ms_sum: dict[str, float] = defaultdict(float)
+        self._node_latency_ms_count: dict[str, int] = defaultdict(int)
+        self._llm_calls: dict[str, int] = {o: 0 for o in LLM_OUTCOMES}
         self._round_latencies: deque = deque(maxlen=500)
         self._started_at = time.time()
 
@@ -46,7 +45,7 @@ class MetricsRegistry:
             llm = dict(self._llm_calls)
             rounds = list(self._round_latencies)
 
-        lines: List[str] = []
+        lines: list[str] = []
         add = lines.append
 
         add("# HELP aigent_node_exec_total Total node executions by type and status")
