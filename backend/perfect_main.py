@@ -75,9 +75,29 @@ class LLMConfigRequest(BaseModel):
     model: str = "gpt-4o-mini"
 
 
+def _validate_production_env() -> None:
+    """T62：AIGENT_ENV=production 时的强制配置校验——缺失即启动失败并给出明确报错"""
+    if os.getenv("AIGENT_ENV", "") != "production":
+        return
+    missing = [
+        name
+        for name, value in (
+            ("AIGENT_ADMIN_TOKEN", _admin_token()),
+            ("LLM_API_BASE_ALLOWLIST", os.getenv("LLM_API_BASE_ALLOWLIST", "")),
+        )
+        if not value.strip()
+    ]
+    if missing:
+        raise RuntimeError(
+            f"生产环境启动失败：缺少必需配置 {', '.join(missing)}。"
+            "请在环境变量或 .env 中设置后重启（AIGENT_ENV=production 强制要求）。"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()  # T22：结构化 JSON 日志（幂等）
+    _validate_production_env()  # T62：生产配置守卫
     logger.info(f"service_start version={app.version}")
     engine.start()
     yield

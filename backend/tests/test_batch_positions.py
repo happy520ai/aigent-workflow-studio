@@ -27,6 +27,8 @@ def test_batch_positions_updates_layout(api):
     for i, nid in enumerate(ids):
         assert by_id[nid]["position"]["x"] == 100.0 + i * 50
         assert by_id[nid]["position"]["y"] == 200.0 + i * 30
+    # 清理：RESET 恢复默认拓扑与坐标，不给后续用例留脏位置（全量序依赖）
+    assert api.post("/api/v1/workflow/control", json={"action": "reset"}).status_code == 200
 
 
 def test_batch_positions_skips_unknown_and_404_when_all_invalid(api):

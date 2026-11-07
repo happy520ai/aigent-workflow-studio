@@ -630,6 +630,16 @@ class PerfectNeuralEngine:
         if workflow_id == self.active_workflow_id:
             return self.get_snapshot()
         row = await self.checkpoint_store.get_workflow_row(workflow_id)
+        if row is None and workflow_id == self.DEFAULT_WORKFLOW_ID:
+            # T51 实证修复：persist=0 时 default 从不落库，切走后再切回会 404 卡死激活流——
+            # 以当前内存 default 态播种工作流行（幂等）
+            await self.checkpoint_store.save_workflow(
+                workflow_id,
+                workflow_id,
+                [n.model_dump() for n in self.nodes.values()],
+                [e.model_dump() for e in self.edges],
+            )
+            row = await self.checkpoint_store.get_workflow_row(workflow_id)
         if row is None:
             raise ValueError(f"工作流不存在: {workflow_id}")
         await self.save_topology()
