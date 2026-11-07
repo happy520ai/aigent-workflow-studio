@@ -25,7 +25,20 @@
     "backend/aigent_checkpoints.db",
     "backend/data/**",
     "gui-test-screenshots/**",
-    "*.tsbuildinfo"
+    "*.tsbuildinfo",
+    "**/.pytest_cache/**",
+    "**/.ruff_cache/**",
+    ".pm/quality-runs/**",
+    ".pm/snapshots/**",
+    ".pm/sessions.json",
+    ".pm/changelog.md",
+    ".pm/tasks.json",
+    ".pm/roadmap.json",
+    ".pm/security.json",
+    ".pm/project.json",
+    "PROJECT.md",
+    "docs/e2e-screenshots/**",
+    "backend/backups/**"
   ],
   "completion_evidence": {
     "minimum": "execution_only",
@@ -40,5 +53,5 @@
     "outputBudgetLines": 150
   },
   "created": "2026-11-03T16:32:16.041Z",
-  "updated": "2026-11-07T02:19:35.938Z"
+  "updated": "2026-11-07T02:22:55.594Z"
 }
