@@ -10,7 +10,7 @@
       "status": "accepted",
       "note": "根目录 .env 为本机开发配置（含真实 LLM key，方案铁律第 3 条禁止移动/提交）；已验证 git ls-files 零命中且 .gitignore 覆盖；T62 将提供 .env.example 无值模板",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
     },
     {
       "id": "SEC-002",
@@ -34,7 +34,7 @@
       "status": "accepted",
       "note": "同 SEC-002：frontend/.env.local 未入库且已 gitignore；T63 删除该临时文件",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
     },
     {
       "id": "SEC-004",
@@ -46,7 +46,7 @@
       "status": "accepted",
       "note": "误报：ast_validator.py:100 的 \"eval(\" 是拦截 eval() 的防御性正则模式（DANGEROUS_PATTERNS），并非动态执行代码；该文件本身是安全净化器",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
     },
     {
       "id": "SEC-005",
@@ -70,7 +70,7 @@
       "status": "accepted",
       "note": "误报：backend/static/vendor/tailwindcss-play.js 是第三方 minified JS（Tailwind Play 3.4.16 官方构建），压缩器变量组合撞上 SQL 关键字正则；该文件不接触任何数据库",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
     },
     {
       "id": "SEC-007",
@@ -82,7 +82,7 @@
       "status": "accepted",
       "note": "误报：tailwindcss-play.js minified 产物中 JS 模板串被 SQL 拼接正则命中；第三方 vendor 资产，与 SQL 无关",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
     },
     {
       "id": "SEC-008",
@@ -94,7 +94,7 @@
       "status": "accepted",
       "note": "误报：同上，minified 第三方 JS 的 SQL 正则误报",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
     },
     {
       "id": "SEC-009",
@@ -106,8 +106,32 @@
       "status": "accepted",
       "note": "误报：tests/test_settings_guard.py:72 的 \"sk-abcdef123456\" 是测试夹具假密钥，验证「响应绝不回显 api_key」用例，非真实凭据",
       "first_seen": "2026-11-06T18:02:05.206Z",
-      "last_seen": "2026-11-06T18:02:05.206Z"
+      "last_seen": "2026-11-07T02:19:07.240Z"
+    },
+    {
+      "id": "SEC-010",
+      "rule": "secret.generic-assignment",
+      "severity": "medium",
+      "file": "backend/tests/test_logging_observability.py",
+      "line": 26,
+      "fingerprint": "dac4af7653e70a63",
+      "status": "accepted",
+      "note": "误报：tests/test_logging_observability.py:26 的 token 字面量是 SecretFilter 单测常量（验证抹除矩阵），非真实凭据",
+      "first_seen": "2026-11-07T02:19:07.240Z",
+      "last_seen": "2026-11-07T02:19:07.240Z"
+    },
+    {
+      "id": "SEC-011",
+      "rule": "danger.sql-concat",
+      "severity": "high",
+      "file": "frontend/src/Workbench.tsx",
+      "line": 1064,
+      "fingerprint": "e18ccd56a80b3aac",
+      "status": "accepted",
+      "note": "误报：frontend/src/Workbench.tsx:1064 的 \"sql-concat\" 命中点是框选命中日志模板字符串 `框选 ${hits.length} 个节点`（纯前端日志拼接，无 SQL、无后端）；minified JS 误报同 vendor 资产性质",
+      "first_seen": "2026-11-07T02:19:07.240Z",
+      "last_seen": "2026-11-07T02:19:07.240Z"
     }
   ],
-  "last_scan": "2026-11-06T18:02:05.206Z"
+  "last_scan": "2026-11-07T02:19:07.240Z"
 }

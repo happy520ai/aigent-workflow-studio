@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AIGENT-WORKFLOW STUDIO v2.8 Complete Industrial Backend",
+    title="AIGENT-WORKFLOW STUDIO v3.0.0 Complete Industrial Backend",
     version="3.0.0",
     lifespan=lifespan,
 )

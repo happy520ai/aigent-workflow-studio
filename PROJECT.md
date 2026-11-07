@@ -1,7 +1,7 @@
 # 神经元工作流平台 · 万象台 — 项目仪表盘
 
 > ⚠️ 本文件由 pm-mcp 自动生成（勿手改）。状态账本写入后自动刷新；手动刷新用 regenerate_dashboard。
-> 生成时间: 2026-11-06T19:51:50.345Z
+> 生成时间: 2026-11-07T02:20:00.962Z
 > 神经元式智能体工作流可视化平台：以"赛博蜘蛛 HUD + 道家哲学叙事"为设计语言的单文件交互原型，持续迭代至电影级观感
 
 ## 🗺️ 路线图
@@ -41,7 +41,7 @@ flowchart LR
 ## 🩺 健康摘要
 | 账本 | 状态 |
 |---|---|
-| 漂移（防幻觉） | ⚠️ 126 项（功能入口文件或 done 任务关联文件缺失） |
+| 漂移（防幻觉） | ⚠️ 130 项（功能入口文件或 done 任务关联文件缺失） |
 | 债务（反挤出） | ✅ 无未清债务 |
 | churn（变更率） | ⚠️ 热点 neuron-workflow-v15.html(71), test/verify-v15.js(71), package.json(19) |
 | 安全 | ✅ 无未处理发现 |
@@ -117,7 +117,7 @@ flowchart LR
 - ○ F-054 神经智能体工作流平台 · 仿图复刻 — 第一版仿图，已按用户要求删除，由 AIGENT-WORKFLOW STUDIO v2.8 取代。
 - ⚠️ 漂移 F-058 动效引擎 1:1（生物发光神经元/微组件/WebGL/小地图/声效） — 按《动画效果.txt》模板 1:1 落地的前端动效引擎：BioluminescentCanvas 加色混合神经元画布、NodeMicroWidgets 四微组件
 ### backend
-- ✅ F-055 后端 FastAPI 服务 · 神经元 DAG 引擎与实时遥测（v2.8） — AIGENT-WORKFLOW STUDIO v2.8 后端：Pydantic v2 全量数据契约；异步神经元 DAG 调度引擎（Run/Pause/Debug
+- ⚠️ 漂移 F-055 后端 FastAPI 服务 · 神经元 DAG 引擎与实时遥测（v2.8） — AIGENT-WORKFLOW STUDIO v2.8 后端：Pydantic v2 全量数据契约；异步神经元 DAG 调度引擎（Run/Pause/Debug
 - ✅ F-056 终极版 · 动态拓扑后端 + React 工作台（1:1） — 按用户终极版文档 1:1 交付：PerfectNeuralEngine（Kahn 动态拓扑分层调度 + SQLite 时间旅行断点 + 跨节点共享记忆总线 + 
 ### backend + frontend
 - ✅ F-057 终极版动态拓扑工作台（AIGENT-WORKFLOW STUDIO v2.8 Ultimate） — 模板 16 板块 1:1 全栈落地：12算子注册表+AST自愈校验内联进 Kahn 拓扑执行流水线的 FastAPI 后端（含时间旅行断点/突触连线 CRUD/
@@ -140,4 +140,4 @@ flowchart LR
   - 改动: .gitignore, docs/baseline.txt, docs/doc-drift.md
 
 ---
-stack: HTML, JavaScript, Canvas 2D, 手写3D投影 · modules: 可视化原型, 总控HUD, 模拟数据引擎 · exposure: local · license: 未声明
+stack: HTML, JavaScript, Canvas 2D, 手写3D投影 · modules: 可视化原型, 总控HUD, 模拟数据引擎 · exposure: local · license: MIT

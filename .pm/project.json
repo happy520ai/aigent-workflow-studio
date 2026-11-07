@@ -32,7 +32,7 @@
     "reason": "本任务为纯视觉动效层（Canvas/WebGL/关键帧渲染），前端无单测运行器，无法产出测试计数；质量证据为 tsc -b 零错误 + vite build 全绿（1585 模块）+ 质量矩阵 build 单元 exit 0，后端 pytest 53 项此前已全绿且本次未触碰后端。"
   },
   "exposure": "local",
-  "license": "",
+  "license": "MIT",
   "budgets": {
     "maxFileLoc": 500,
     "refactorQuotaPct": 20,
@@ -40,5 +40,5 @@
     "outputBudgetLines": 150
   },
   "created": "2026-11-03T16:32:16.041Z",
-  "updated": "2026-11-06T18:07:28.264Z"
+  "updated": "2026-11-07T02:19:35.938Z"
 }

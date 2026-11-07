@@ -1033,16 +1033,32 @@ class PerfectNeuralEngine:
                     node.degraded = False
                     metrics.observe_llm("success")
                 else:
-                    # 不再静默吞掉：LLM 失败必须留痕后降级内置模板（degraded 徽章对前端可见）
-                    node.degraded = True
-                    metrics.observe_llm("failure")
-                    metrics.observe_llm("degraded")
-                    logger.warning(f"llm_stream_failed node_id={node.id} degraded=true error={stream_error}")
-                    await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {stream_error}")
-                    await asyncio.sleep(0.3)
-                    raw_html = self._default_sandbox_template(
-                        f"AI 生成组件 #{random.randint(100, 999)} ({node.config_json.get('name', 'Agent')})"
+                    # T73 实证：部分供应商（如讯飞）流式通道未开通时返回 200+业务码——
+                    # 流式失败/空输出 → 自动回落一次非流式调用（v2.8 语义），再失败才降级模板
+                    fallback = await llm.chat_completion(
+                        api_base=self.llm_config["api_base"],
+                        api_key=api_key,
+                        model=self.llm_config["model"],
+                        messages=messages,
+                        max_tokens=1024,
+                        transport_factory=_make_transport,
                     )
+                    if fallback["ok"] and fallback["content"].strip():
+                        raw_html = fallback["content"]
+                        node.degraded = False
+                        metrics.observe_llm("success")
+                        logger.info(f"llm_non_stream_fallback_ok node_id={node.id} stream_error={stream_error}")
+                    else:
+                        # 不再静默吞掉：LLM 失败必须留痕后降级内置模板（degraded 徽章对前端可见）
+                        node.degraded = True
+                        metrics.observe_llm("failure")
+                        metrics.observe_llm("degraded")
+                        logger.warning(f"llm_stream_failed node_id={node.id} degraded=true error={stream_error or fallback['error']}")
+                        await self.append_log(f"[Warn] LLM 调用失败，降级内置模板: {stream_error or fallback['error']}")
+                        await asyncio.sleep(0.3)
+                        raw_html = self._default_sandbox_template(
+                            f"AI 生成组件 #{random.randint(100, 999)} ({node.config_json.get('name', 'Agent')})"
+                        )
             else:
                 await asyncio.sleep(random.uniform(0.28, 0.5))
                 node.degraded = False

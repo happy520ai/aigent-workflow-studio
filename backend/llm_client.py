@@ -123,9 +123,18 @@ class LLMClient:
                                 break
                             try:
                                 chunk = json.loads(data)
-                                delta = (chunk.get("choices") or [{}])[0].get("delta", {}).get("content") or ""
-                            except (ValueError, IndexError, AttributeError):
+                            except ValueError:
                                 continue
+                            # 供应商业务错误码可能包在 200+SSE 里（如讯飞 11200 AppIdNoAuthError）
+                            if chunk.get("code") not in (None, 0):
+                                yield {
+                                    "delta": "",
+                                    "done": True,
+                                    "degraded": True,
+                                    "error": f"LLM code={chunk.get('code')} message={chunk.get('message', '')}",
+                                }
+                                return
+                            delta = (chunk.get("choices") or [{}])[0].get("delta", {}).get("content") or ""
                             if delta:
                                 yield {"delta": delta, "done": False, "degraded": False, "error": None}
                 yield {"delta": "", "done": True, "degraded": False, "error": None}

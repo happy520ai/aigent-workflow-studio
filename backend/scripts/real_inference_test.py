@@ -55,7 +55,8 @@ def load_env_key() -> str:
     return ""
 
 
-def rest(method, path, payload=None, token=False):
+def rest(method, path, payload=None, token=True):
+    # v3.0.0：写接口一律要求管理令牌（T10）——默认全部携带
     headers = {"Content-Type": "application/json"} if payload is not None else {}
     if token:
         headers["X-Admin-Token"] = ADMIN_TOKEN
@@ -93,7 +94,7 @@ def is_builtin_template(html: str) -> bool:
     return any(m in html for m in BUILTIN_TEMPLATE_MARKERS)
 
 
-def wait_for(predicate, timeout_s=30, interval=1.2):
+def wait_for(predicate, timeout_s=150, interval=1.2):
     """轮询直到 predicate() 为真，返回 (是否命中, 耗时秒)"""
     t0 = time.time()
     while time.time() - t0 < timeout_s:
@@ -154,14 +155,14 @@ def main() -> int:
         rest("PUT", "/api/v1/workflow/nodes/node_ui_gen/config", cfg_a)
         ok_a, waited_a = wait_for(
             lambda: get_sandbox_html() not in ("", before) and not is_builtin_template(get_sandbox_html()),
-            timeout_s=35,
+            timeout_s=240,
         )
         html_a = get_sandbox_html()
 
         rest("PUT", "/api/v1/workflow/nodes/node_ui_gen/config", cfg_b)
         ok_b, waited_b = wait_for(
             lambda: get_sandbox_html() not in ("", html_a),
-            timeout_s=35,
+            timeout_s=240,
         )
         html_b = get_sandbox_html()
 
@@ -191,7 +192,7 @@ def main() -> int:
 
         ok_cg, waited_cg = wait_for(
             lambda: (node_by_id(codegen_id) or {}).get("status") == "success",
-            timeout_s=30,
+            timeout_s=240,
         )
         cg = node_by_id(codegen_id) or {}
         check("T4 agent_codegen 节点执行成功", ok_cg and cg.get("status") == "success",
@@ -235,18 +236,24 @@ def main() -> int:
               "model": original_cfg.get("model")}, token=True)
         ok_warn, waited_warn = wait_for(
             lambda: "[Warn] LLM 调用失败" in "\n".join(get_workflow().get("terminal_logs", [])),
-            timeout_s=30,
+            timeout_s=150,
         )
         check("T7 错误密钥触发 [Warn] 降级日志", ok_warn, f"等待{waited_warn}s")
-        ok_fallback, waited_fb = wait_for(lambda: is_builtin_template(get_sandbox_html()), timeout_s=30)
+        ok_fallback, waited_fb = wait_for(lambda: is_builtin_template(get_sandbox_html()), timeout_s=240)
         check("T7 失败后回落内置模板（循环未中断）", ok_fallback, f"等待{waited_fb}s")
-        # 恢复正确密钥
+        # 恢复正确密钥（先按原模型恢复；若该模型未订阅则回落 lite——2026-11-07 key 仅订阅 lite）
         rest("PUT", "/api/v1/settings/llm",
              {"api_key": key, "api_base": original_cfg.get("api_base"),
               "model": original_cfg.get("model")}, token=True)
         ok_recover, waited_rc = wait_for(
-            lambda: not is_builtin_template(get_sandbox_html()), timeout_s=60,
+            lambda: not is_builtin_template(get_sandbox_html()), timeout_s=90,
         )
+        if not ok_recover:
+            rest("PUT", "/api/v1/settings/llm",
+                 {"api_key": key, "api_base": original_cfg.get("api_base"), "model": "lite"}, token=True)
+            ok_recover, waited_rc = wait_for(
+                lambda: not is_builtin_template(get_sandbox_html()), timeout_s=240,
+            )
         check("T7 恢复密钥后重新走真实推理", ok_recover, f"等待{waited_rc}s")
 
         # ---------- T8 SSRF 守卫 ----------
@@ -265,7 +272,7 @@ def main() -> int:
             lambda: not is_builtin_template(get_sandbox_html())
             and not any("[Warn] LLM 调用失败" in l
                         for l in set(get_workflow().get("terminal_logs", [])) - logs_before_t9),
-            timeout_s=60,
+            timeout_s=240,
         )
         check("T9 切换 generalv3.5 后仍真实可用", ok_switch, f"等待{waited_sw}s")
         # 恢复原模型
