@@ -1,5 +1,11 @@
 # 变更日志（自动生成，来自 sessions.json）
 
+## 2026-11-07 — zcode
+
+生产化 P0–P7 全量完成（45 任务）：v3.0.0。终验门：pytest 184 全绿、vitest 16、E2E 4 场景、verify 47:0、ruff clean、覆盖率核心八模块 90%、pip-audit/npm audit 零漏洞、真实推理 16/17（唯一未过=T2 首查时序 vs 免费档 lite QPS，已披露；讯飞流式未订阅已修为业务码识别+非流式回落）。E2E 途中实证修复 5 个产品 bug（uvicorn/websockets 升级、签名 URL 绝对化、popup 预开、快照竞态双加边去重、3 处 fetch 缺令牌）。部署实测 docs/deploy-verified.md；RUNBOOK/backup/restore/CI 就绪；质量矩阵通过（零写入测试改造：hypothesis storage 重定向 + no:cacheprovider + teardown 纯删除）
+
+下一步: 推送到远端并观察 CI 首跑（.github/workflows/ci.yml）；E2E 与 docker compose 需要时手动复验（docs/deploy-verified.md 有全命令）
+
 ## 2026-11-07 — 未知
 
 T-084 生产化 P7：收尾 v3.0.0（T70-T73）：P7 四任务完成（其余关联文件：frontend/package.json、src/Workbench.tsx、index.html、README.md、backend/README.md、CHANGELOG.md、docs/final-acceptance.md 属 frontend/与根 docs 目录，不在后端测试单元覆盖内，变更见 git 提交 56771a1..2039cfc；T70 删除的 v1 六文件见提交 aab4d4d 删除记录）。内容：T70 删 v1 六文件+等价覆盖迁移（RESET 单步门已有 test_perfect_engine，新增 WS select-unknown-node；pytest 计数降至 184 为方案预期）；T71 文档重写（README×2/CHANGELOG v3.0.0 + 架构文档重生成 659 行 46 节）；T72 版本统一 3.0.0（app/snapshot/模板/zip/前端/全部契约断言，verify 47:0）；T73 终验 docs/final-acceptance.md：pytest 184 全绿 + vitest 16 + E2E 4 + check + verify 47:0 + ruff clean + 覆盖率 90% + 双审计零漏洞 + 真实推理 16/17（唯一未过=T2 首查时序 vs 免费档 lite QPS 限流，配置传播由 T2 二查与 T6 四轮稳定双证；讯飞流式未订阅已修为业务码识别+非流式回落；现场已还原 4.0Ultra + reset）

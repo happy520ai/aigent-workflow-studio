@@ -1,5 +1,5 @@
 {
-  "seq": 113,
+  "seq": 114,
   "sessions": [
     {
       "id": "S-0001",
@@ -2041,6 +2041,18 @@
         "backend/llm_client.py": "9f0363ef3b68c443b108192695048732e55256bebb2cd8bacdc2c3a4a20be01b"
       },
       "next_steps": []
+    },
+    {
+      "id": "S-0114",
+      "date": "2026-11-07T02:48:36.123Z",
+      "author": "zcode",
+      "summary": "生产化 P0–P7 全量完成（45 任务）：v3.0.0。终验门：pytest 184 全绿、vitest 16、E2E 4 场景、verify 47:0、ruff clean、覆盖率核心八模块 90%、pip-audit/npm audit 零漏洞、真实推理 16/17（唯一未过=T2 首查时序 vs 免费档 lite QPS，已披露；讯飞流式未订阅已修为业务码识别+非流式回落）。E2E 途中实证修复 5 个产品 bug（uvicorn/websockets 升级、签名 URL 绝对化、popup 预开、快照竞态双加边去重、3 处 fetch 缺令牌）。部署实测 docs/deploy-verified.md；RUNBOOK/backup/restore/CI 就绪；质量矩阵通过（零写入测试改造：hypothesis storage 重定向 + no:cacheprovider + teardown 纯删除）",
+      "files": [],
+      "file_hashes": {},
+      "next_steps": [
+        "推送到远端并观察 CI 首跑（.github/workflows/ci.yml）",
+        "E2E 与 docker compose 需要时手动复验（docs/deploy-verified.md 有全命令）"
+      ]
     }
   ]
 }
