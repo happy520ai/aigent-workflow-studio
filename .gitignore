@@ -13,3 +13,5 @@ _server*.log
 playwright-report/
 test-results/
 e2e-artifacts/
+.pm/quality-runs/
+PROJECT.md
