@@ -6,6 +6,8 @@ import tempfile
 
 os.environ.setdefault("AIGENT_PERSIST_TOPOLOGY", "0")
 os.environ.setdefault("AIGENT_DB_PATH", os.path.join(tempfile.mkdtemp(), "ckpt.db"))
+# T51 矩阵零写入：hypothesis 策略缓存指向系统临时目录（默认在 cwd 落 .hypothesis 导致指纹漂移）
+os.environ.setdefault("HYPOTHESIS_STORAGE_DIRECTORY", os.path.join(tempfile.mkdtemp(), "hyp"))
 
 import time
 
