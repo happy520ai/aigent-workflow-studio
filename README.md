@@ -1,57 +1,64 @@
-# AIGENT-WORKFLOW STUDIO v2.8 · 神经元工作流平台
+# AIGENT-WORKFLOW STUDIO v3.0.0
 
-前端 React 18 + TS + Vite（5173）· 后端 FastAPI（8000）。
-现役入口：后端 `backend/perfect_main.py` + `backend/perfect_engine.py`（v1 `main.py`/`engine.py` 仅保留兼容）。
-完整结构说明见 [代码结构图.txt](./代码结构图.txt)。
+神经元式智能体工作流平台：React 工作台（赛博蜘蛛 HUD 设计语言）+ FastAPI 动态 DAG 引擎 +
+12+ 算子内核（真实 LLM / HTTP / 逻辑变换 + 明确标注的模拟算子）+ SQLite 时间旅行 + 多工作流。
 
-## 快速启动
+> 生产化改造（P0–P7）已完成：安全加固、可观测、多工作流、真实算子、E2E、CI、Docker。
+> 架构总览见《项目源码与架构文档.md》；运维见 `docs/RUNBOOK.md`。
+
+## 快速开始（Docker Compose，推荐）
 
 ```bash
-# 后端（虚拟环境）
-cd backend
-.venv/Scripts/python -m uvicorn perfect_main:app --port 8000
-
-# 前端
-cd frontend
-npm install && npm run dev   # :5173
-
-# 测试
-cd backend && .venv/Scripts/python -m pytest -q
-cd frontend && npm run build
-node test/verify-perfect-workbench.js
+cp .env.example .env                # 填 AIGENT_ADMIN_TOKEN 等配置
+docker compose up -d --build
+docker ps                           # 等待两容器 healthy
+# 前端入口 http://127.0.0.1:3000 · 后端直连 http://127.0.0.1:8010/healthz
 ```
 
-## 环境变量
+本机开发：
 
-### 大模型与安全
+```bash
+cd backend && .venv/Scripts/python -m uvicorn perfect_main:app --host 127.0.0.1 --port 8000
+cd frontend && npm run dev          # http://localhost:5173
+```
 
-| 变量 | 说明 | 默认 |
-|---|---|---|
-| `LLM_API_KEY` | 大模型密钥（任何响应绝不回显原文，仅露末 4 位） | 空（走内置模板） |
-| `LLM_API_BASE` | 大模型接口地址 | `https://api.openai.com/v1` |
-| `LLM_MODEL` | 模型名 | `gpt-4o-mini` |
-| `AIGENT_ADMIN_TOKEN` | 设置接口管理令牌；设置后请求必须带 `X-Admin-Token` 头，否则 401 | 空（仅允许本机回环访问，否则 403） |
-| `LLM_API_BASE_ALLOWLIST` | api_base 主机白名单（逗号分隔），配置后跳过 DNS 内网校验 | 空 |
-| `AIGENT_ALLOW_PRIVATE_LLM` | `=1` 放行解析到内网/保留地址的 api_base | 空（默认拒绝） |
-| `CORS_ORIGINS` | CORS 白名单（逗号分隔） | `http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000` |
+## 能力一览
 
-### 持久化
+- **动态 DAG 引擎**：Kahn 分层编译 + 环路兜底反馈层；节点执行计数/耗时/错误隔离；运行记录持久化（重启不丢）。
+- **真实算子**：`llm_generic`（模板变量取自上游输出）、`http_request`（SSRF 防护 + IP 固定直连）、`logic_transform`（点路径/模板映射，无 eval）；其余算子 `mode=simulated` 如实标注。
+- **LLM 韧性**：重试（429/5xx/超时，指数退避+抖动）、并发信号量、可配超时、SSE 流式输出（WS `node_stream` 增量）、降级徽章。
+- **多工作流**：CRUD / 激活切换 / JSON 导入导出（类型白名单 + 环检测）/ AI 生成节点（严格 JSON 增量 + 服务端校验）/ Kahn 自动布局。
+- **安全**：全局管理令牌（X-Admin-Token + WS token + 短期签名 URL）、WS Origin 白名单、限流与体积上限、安全响应头、DNS rebinding 防护、日志密钥抹除。
+- **可观测**：`/healthz` `/readyz` `/metrics`（Prometheus）；JSON 结构化日志带 X-Request-ID。
+- **时间旅行**：每轮 DAG 落 SQLite 断点，含拓扑回滚；前端控制台一键恢复。
 
-| 变量 | 说明 | 默认 |
-|---|---|---|
-| `AIGENT_DB_PATH` | SQLite 断点库路径 | `aigent_checkpoints.db`（工作目录） |
-| `AIGENT_PERSIST_TOPOLOGY` | `=1` 启动时还原上次拓扑，并在增删节点/连线、位置/配置变更、RESET 后落库 | `1` |
-| `CHECKPOINT_MAX` | 断点库上限，超出按时间倒序剪枝 | `2000` |
+## 测试与质量
 
-### 前端接线（frontend/.env 可覆盖）
+```bash
+cd backend && .venv/Scripts/python -m pytest -q              # 184 用例
+cd backend && .venv/Scripts/python -m pytest -q \
+  --cov=perfect_engine --cov=perfect_main --cov=ast_validator \
+  --cov=operator_registry --cov=llm_client --cov=metrics \
+  --cov=net_guard --cov=obs_logging --cov-report=term        # 核心模块 ≥80%（实测 90%）
+cd frontend && npm test                                       # vitest 16 用例
+cd frontend && npx playwright test                            # E2E 4 场景（自起前后端）
+node test/verify-perfect-workbench.js                         # 结构校验 47:0
+```
 
-| 变量 | 说明 | 默认 |
-|---|---|---|
-| `VITE_API_BASE` | REST 基址 | `http://localhost:8000/api/v1` |
-| `VITE_WS_URL` | WebSocket 地址 | `ws://localhost:8000/ws/telemetry` |
+CI（GitHub Actions，`.github/workflows/ci.yml`）：后端 ruff + pytest(覆盖率门槛 80%) + pip-audit；
+前端 npm audit + tsc/build + vitest；双镜像构建；E2E 手动触发。
 
-## 已知边界
+## 目录
 
-- 12 个算子 + 1 个兜底均为内置模拟（WS/REST 返回 `mode: "simulated"` 如实标注），仅 ui_generation / agent_codegen 在配置了 `LLM_API_KEY` 时真实外呼大模型。
-- api_base 的 DNS 校验无法完全防 DNS rebinding（解析与请求之间存在时间差）。
-- ECG 心电波形为纯装饰性随机生成，非真实指标；CPU/内存为 psutil 真实采样。
+```
+backend/    FastAPI 引擎与测试（perfect_main / perfect_engine / operator_registry / net_guard / llm_client / metrics / obs_logging）
+frontend/   React 工作台（Workbench 组合根 + components/ hooks/ utils/）+ e2e/
+docs/       baseline / doc-drift / security-scan / deploy-verified / RUNBOOK / lighthouse
+scripts/    backup.py / ws_smoke.py / restore.md
+test/       verify-perfect-workbench.js（结构校验）
+```
+
+## 许可与密钥
+
+- `.env`（真实 key）不入库；模板见 `.env.example`。
+- 生产必读：`docs/RUNBOOK.md` 第 2 节（AIGENT_ENV=production 强制 AIGENT_ADMIN_TOKEN 与 LLM_API_BASE_ALLOWLIST）。
