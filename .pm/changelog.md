@@ -1,5 +1,17 @@
 # 变更日志（自动生成，来自 sessions.json）
 
+## 2026-11-07 — 未知
+
+T-084 生产化 P7：收尾 v3.0.0（T70-T73）：P7 四任务完成（其余关联文件：frontend/package.json、src/Workbench.tsx、index.html、README.md、backend/README.md、CHANGELOG.md、docs/final-acceptance.md 属 frontend/与根 docs 目录，不在后端测试单元覆盖内，变更见 git 提交 56771a1..2039cfc；T70 删除的 v1 六文件见提交 aab4d4d 删除记录）。内容：T70 删 v1 六文件+等价覆盖迁移（RESET 单步门已有 test_perfect_engine，新增 WS select-unknown-node；pytest 计数降至 184 为方案预期）；T71 文档重写（README×2/CHANGELOG v3.0.0 + 架构文档重生成 659 行 46 节）；T72 版本统一 3.0.0（app/snapshot/模板/zip/前端/全部契约断言，verify 47:0）；T73 终验 docs/final-acceptance.md：pytest 184 全绿 + vitest 16 + E2E 4 + check + verify 47:0 + ruff clean + 覆盖率 90% + 双审计零漏洞 + 真实推理 16/17（唯一未过=T2 首查时序 vs 免费档 lite QPS 限流，配置传播由 T2 二查与 T6 四轮稳定双证；讯飞流式未订阅已修为业务码识别+非流式回落；现场已还原 4.0Ultra + reset）
+
+改动文件（8）: backend/tests/test_perfect_engine.py, backend/tests/test_ws_auth.py, backend/tests/conftest.py, backend/perfect_main.py, backend/perfect_engine.py, backend/models.py, backend/scripts/real_inference_test.py, backend/llm_client.py
+
+## 2026-11-07 — 未知
+
+T-082 生产化 P5：测试体系（T50-T54）：P5 五任务完成：T50 vitest 16 用例（npm test/check 分离）；T51 Playwright E2E 4 场景全绿，实证修复 5 个产品 bug（WS 关闭崩溃→uvicorn0.54/websockets17.4、export 401→签名 URL 绝对化、popup 拦截→预开窗口、快照竞态双加边→id 去重、3 处 fetch 缺令牌）；T52 覆盖率核心八模块 90%；T53 hypothesis 模糊测试 3 不变量；T54 verify 升级。质量矩阵通过（backend exit0 + frontend vitest 已观察 16 通过）
+
+改动文件（13）: frontend/src/utils/layout.test.ts, frontend/src/config.test.ts, frontend/src/components/TerminalLog.test.tsx, frontend/src/hooks/useWorkflowSocket.test.tsx, frontend/e2e/workflow.spec.ts, frontend/playwright.config.ts, frontend/e2e/global-setup.ts, backend/tests/test_ast_fuzz.py, backend/tests/test_production_guard.py, backend/tests/test_backup_restore.py, backend/tests/conftest.py, backend/pytest.ini, backend/requirements-dev.txt
+
 ## 2026-11-06 — 未知
 
 T-081 生产化 P4：前端工程化（T40-T46）：P4 七任务完成：T40 Workbench 1722→~880 行（types/hooks×2/组件×5 原样迁出，代际锁保留，verify 锚点 43/47 待 T54 更新）；T41 删 7 个零引用遗留+noUnused 双开；T42 ErrorBoundary+全局 toast+WS 重连状态条；T43 401 自动弹设置抽屉+令牌变更重建 WS；T44 撤销/重做命令栈+框选多删+中键平移+Ctrl 滚轮缩放+Filter 删除；T45 focus-visible+reduced-motion 三层关停+aria 补全+窄屏浮层抽屉（Lighthouse 留 T51）；T46 sourcemap=0+分包 3 块 dist 269K。每次 build 通过；坑：npm 管道吞退出码曾致未验证提交，已补验

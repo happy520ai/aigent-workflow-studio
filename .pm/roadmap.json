@@ -50,19 +50,19 @@
       "id": "M32",
       "title": "生产化 P3–P5：核心能力 + 前端工程化 + 测试体系",
       "goal": "真实算子框架/流式输出/多工作流/导入导出/AI生成节点/自动布局；拆分Workbench/清理遗留/错误边界/登录态UI/画布能力/可访问性/构建产物；vitest/E2E/覆盖率/AST模糊测试/verify升级",
-      "status": "planned",
+      "status": "done",
       "order": 6,
       "created": "2026-11-06T17:34:10.673Z",
-      "updated": "2026-11-06T17:34:10.673Z"
+      "updated": "2026-11-07T02:47:50.274Z"
     },
     {
       "id": "M33",
       "title": "生产化 P6–P7：部署运维 + 收尾（v3.0.0）",
       "goal": "Docker加固/compose实测/env.example/删临时项/备份恢复/CI/RUNBOOK；删v1遗留/文档重写/版本3.0.0/终验报告 docs/final-acceptance.md",
-      "status": "planned",
+      "status": "done",
       "order": 7,
       "created": "2026-11-06T17:34:10.802Z",
-      "updated": "2026-11-06T17:34:10.802Z"
+      "updated": "2026-11-07T02:47:50.364Z"
     }
   ]
 }

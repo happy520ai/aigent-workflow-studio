@@ -1,5 +1,5 @@
 {
-  "seq": 111,
+  "seq": 113,
   "sessions": [
     {
       "id": "S-0001",
@@ -1975,6 +1975,70 @@
         "frontend/tsconfig.json": "6e5c1be4553dfefa138f36a71e7b01ab1fe919e3a6efacfbff9eadf6eaf2c14b",
         "frontend/src/index.css": "bd85d95cfdba2c98a1782d0b81106d3e43694972a390c565940b9f62bfc30829",
         "frontend/src/components/BioluminescentCanvas.tsx": "6db48e18460cf8c4ac580199897ae64fe956dc42ad4b8ad570d4109a99446817"
+      },
+      "next_steps": []
+    },
+    {
+      "id": "S-0112",
+      "date": "2026-11-07T02:46:51.584Z",
+      "author": "",
+      "summary": "T-082 生产化 P5：测试体系（T50-T54）：P5 五任务完成：T50 vitest 16 用例（npm test/check 分离）；T51 Playwright E2E 4 场景全绿，实证修复 5 个产品 bug（WS 关闭崩溃→uvicorn0.54/websockets17.4、export 401→签名 URL 绝对化、popup 拦截→预开窗口、快照竞态双加边→id 去重、3 处 fetch 缺令牌）；T52 覆盖率核心八模块 90%；T53 hypothesis 模糊测试 3 不变量；T54 verify 升级。质量矩阵通过（backend exit0 + frontend vitest 已观察 16 通过）",
+      "files": [
+        "frontend/src/utils/layout.test.ts",
+        "frontend/src/config.test.ts",
+        "frontend/src/components/TerminalLog.test.tsx",
+        "frontend/src/hooks/useWorkflowSocket.test.tsx",
+        "frontend/e2e/workflow.spec.ts",
+        "frontend/playwright.config.ts",
+        "frontend/e2e/global-setup.ts",
+        "backend/tests/test_ast_fuzz.py",
+        "backend/tests/test_production_guard.py",
+        "backend/tests/test_backup_restore.py",
+        "backend/tests/conftest.py",
+        "backend/pytest.ini",
+        "backend/requirements-dev.txt"
+      ],
+      "file_hashes": {
+        "frontend/src/utils/layout.test.ts": "a3b2834d4502a8839296914d05a3578954a54accb2253a822682d4625ec498a4",
+        "frontend/src/config.test.ts": "b78924a357badb3a0b97a6019a4e3f8cddc0ff02f267447b09b9b05b17cc789c",
+        "frontend/src/components/TerminalLog.test.tsx": "54d7c67a8c38b75b07b6cf5212afff5017453f14e0dd005be063590b5704850e",
+        "frontend/src/hooks/useWorkflowSocket.test.tsx": "9d099ac139268d2e9d24dfed6b7e095cb43944b3bba9f2c90528c907402b2cb5",
+        "frontend/e2e/workflow.spec.ts": "f960bc671eec05cb7257f498f8096a96106eac9075aea2f56d2c5565c6571f22",
+        "frontend/playwright.config.ts": "dacba9b3778ac9f8d3816e32918194c5fca1d9c1be9e7d610b8b867ec779b95a",
+        "frontend/e2e/global-setup.ts": "a9867b61c7085c62198db280036e870c7be5285ea51ace4c41ae31880879b1cc",
+        "backend/tests/test_ast_fuzz.py": "81da74c9aae450ec84e0877ab63de2ecd7941a0ce822a7be389d9d78e2bac0bc",
+        "backend/tests/test_production_guard.py": "ff228c01b40eaca7d39adad36a9c23b6f93db6b4b630606c768709a98b6fa333",
+        "backend/tests/test_backup_restore.py": "710656b7d93577c92ec580d9bbfe805dd0960bbe770eb4d5bd97ef0251127289",
+        "backend/tests/conftest.py": "9bc43e2c0c16459fd109d8262520cf706a314a276df04043b5d272da6854118f",
+        "backend/pytest.ini": "ec01740f6a3582a3e6884686097ea654f8363419890d503335b4cb3931c868ad",
+        "backend/requirements-dev.txt": "a8f40584e5b09b8165c9b53233f7602afc915554f64e3fb15a6c5d07a50a97e5"
+      },
+      "next_steps": []
+    },
+    {
+      "id": "S-0113",
+      "date": "2026-11-07T02:47:34.738Z",
+      "author": "",
+      "summary": "T-084 生产化 P7：收尾 v3.0.0（T70-T73）：P7 四任务完成（其余关联文件：frontend/package.json、src/Workbench.tsx、index.html、README.md、backend/README.md、CHANGELOG.md、docs/final-acceptance.md 属 frontend/与根 docs 目录，不在后端测试单元覆盖内，变更见 git 提交 56771a1..2039cfc；T70 删除的 v1 六文件见提交 aab4d4d 删除记录）。内容：T70 删 v1 六文件+等价覆盖迁移（RESET 单步门已有 test_perfect_engine，新增 WS select-unknown-node；pytest 计数降至 184 为方案预期）；T71 文档重写（README×2/CHANGELOG v3.0.0 + 架构文档重生成 659 行 46 节）；T72 版本统一 3.0.0（app/snapshot/模板/zip/前端/全部契约断言，verify 47:0）；T73 终验 docs/final-acceptance.md：pytest 184 全绿 + vitest 16 + E2E 4 + check + verify 47:0 + ruff clean + 覆盖率 90% + 双审计零漏洞 + 真实推理 16/17（唯一未过=T2 首查时序 vs 免费档 lite QPS 限流，配置传播由 T2 二查与 T6 四轮稳定双证；讯飞流式未订阅已修为业务码识别+非流式回落；现场已还原 4.0Ultra + reset）",
+      "files": [
+        "backend/tests/test_perfect_engine.py",
+        "backend/tests/test_ws_auth.py",
+        "backend/tests/conftest.py",
+        "backend/perfect_main.py",
+        "backend/perfect_engine.py",
+        "backend/models.py",
+        "backend/scripts/real_inference_test.py",
+        "backend/llm_client.py"
+      ],
+      "file_hashes": {
+        "backend/tests/test_perfect_engine.py": "5038431f184ba54140fc40c0e837063788f30eccba9fd700a27668c9455bc193",
+        "backend/tests/test_ws_auth.py": "5b43fdc0ae089d6524444a4d428e931c0fa7ece13e478800133345a486aa4545",
+        "backend/tests/conftest.py": "9bc43e2c0c16459fd109d8262520cf706a314a276df04043b5d272da6854118f",
+        "backend/perfect_main.py": "7e338173cf226366b2a55e184819cd5120e8d00272808064854759a4ee46199b",
+        "backend/perfect_engine.py": "b628054728f0845972755f2de14518562208be93d5d0c5cf99e20c3e5c44189e",
+        "backend/models.py": "e47725aa6e551e235e08836044bff7e25234fffad450b19a93159127b674add4",
+        "backend/scripts/real_inference_test.py": "bd1b849f4c45a4cd040fb2614e11b956e00efaeab0594b443688a461110e218e",
+        "backend/llm_client.py": "9f0363ef3b68c443b108192695048732e55256bebb2cd8bacdc2c3a4a20be01b"
       },
       "next_steps": []
     }
