@@ -15,3 +15,10 @@ test-results/
 e2e-artifacts/
 .pm/quality-runs/
 PROJECT.md
+.pm/.runtime/
+.pm/index.db*
+backend/.hypothesis/
+backend/aigent_checkpoints.db
+backend/.hypothesis/
+.pm/.runtime/
+.pm/index.db*
