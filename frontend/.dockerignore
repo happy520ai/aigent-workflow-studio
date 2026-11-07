@@ -1,6 +1,10 @@
 node_modules
 dist
+.env
 .env.local
 *.log
 Dockerfile
 .dockerignore
+playwright-report
+test-results
+e2e

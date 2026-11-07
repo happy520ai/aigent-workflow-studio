@@ -4,6 +4,11 @@ __pycache__
 .pytest_cache
 tests
 *.db
+*.db-shm
+*.db-wal
 data
+.env
 Dockerfile
 .dockerignore
+_e2e_ckpt.db*
+_lh.db*
