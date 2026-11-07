@@ -73,7 +73,7 @@ def test_snapshot_contract_roundtrip():
         position=NodePosition(x=0, y=0), theme_color="#000", config_json={},
     )
     snap = WorkflowSnapshot(
-        version="v2.8",
+        version="v3.0.0",
         project_status=WorkflowStatus.RUNNING,
         selected_node_id="n1",
         nodes=[node],
@@ -85,7 +85,7 @@ def test_snapshot_contract_roundtrip():
         terminal_logs=["a", "b"],
     )
     data = snap.model_dump()
-    assert data["version"] == "v2.8"
+    assert data["version"] == "v3.0.0"
     assert data["project_status"] == "运行中"
     assert len(data["nodes"]) == 1
     # JSON 反序列化后恢复为强类型模型

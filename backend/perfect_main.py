@@ -106,7 +106,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AIGENT-WORKFLOW STUDIO v2.8 Complete Industrial Backend",
-    version="2.8.0-ultimate",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -982,11 +982,11 @@ async def export_workflow_bundle_zip():
         workflow_snapshot=engine.get_snapshot().model_dump(),
         shared_memory_bus=engine.shared_memory_bus,
     )
-    await engine.append_log("[Publish] 已打包并导出独立前端工程源码包 (aigent-bundle-v2.8.zip)")
+    await engine.append_log("[Publish] 已打包并导出独立前端工程源码包 (aigent-bundle-v3.0.0.zip)")
     return StreamingResponse(
         io.BytesIO(zip_bytes),
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="aigent-bundle-v2.8.zip"'},
+        headers={"Content-Disposition": 'attachment; filename="aigent-bundle-v3.0.0.zip"'},
     )
 
 

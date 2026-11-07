@@ -160,7 +160,7 @@ export const SandboxAndTimeTravelModal: React.FC<Props> = ({
             <div className="flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span className="text-xs font-bold text-white tracking-wide">
-                神经元沙盒与时间旅行控制台 (v2.8)
+                神经元沙盒与时间旅行控制台 (v3.0.0)
               </span>
             </div>
 

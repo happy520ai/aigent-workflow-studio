@@ -447,7 +447,7 @@ class PerfectNeuralEngine:
         self.active_workflow_id: str = self.DEFAULT_WORKFLOW_ID
         self._workflows[self.DEFAULT_WORKFLOW_ID] = WorkflowState(
             current_run_id=f"run_{uuid.uuid4().hex[:6]}",
-            latest_sandbox_html=self._default_sandbox_template("初始化智能体监控面板 v2.8"),
+            latest_sandbox_html=self._default_sandbox_template("初始化智能体监控面板 v3.0.0"),
         )
 
         # T27：ECG 波形的数据源改为真实指标——最近一轮 DAG 总耗时（ms），遥测每 0.5s 归一化采样
@@ -1340,7 +1340,7 @@ class PerfectNeuralEngine:
 
     def get_snapshot(self) -> WorkflowSnapshot:
         return WorkflowSnapshot(
-            version="v2.8",
+            version="v3.0.0",
             workflow_id=self.active_workflow_id,
             project_status=self.status,
             selected_node_id=self.selected_node_id,

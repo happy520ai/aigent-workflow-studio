@@ -703,7 +703,7 @@ export default function Workbench() {
               <span className="text-slate-500 font-light">|</span>
             </div>
             <div className="text-[10px] tracking-widest text-slate-400 font-mono">
-              AIGENT-WORKFLOW STUDIO v2.8
+              AIGENT-WORKFLOW STUDIO v3.0.0
             </div>
           </div>
 

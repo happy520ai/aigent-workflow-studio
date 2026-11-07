@@ -72,7 +72,7 @@ def test_perfect_docs_and_routes(perfect_client):
 
 def test_perfect_snapshot_contract(perfect_client):
     snap = perfect_client.get("/api/v1/workflow").json()
-    assert snap["version"] == "v2.8"
+    assert snap["version"] == "v3.0.0"
     assert len(snap["nodes"]) == 5
     assert len(snap["edges"]) == 4
     # 节点坐标与文档一致（55/235、305/235、610/95、610/305、610/435）
@@ -174,7 +174,7 @@ def test_perfect_ws_snapshot_telemetry_and_selection(perfect_client):
     with perfect_client.websocket_connect("/ws/telemetry") as ws:
         # 1) 首连下发完整快照 + 顶层 sandbox_html
         first = _recv_until(ws, "workflow_snapshot")
-        assert first["data"]["version"] == "v2.8"
+        assert first["data"]["version"] == "v3.0.0"
         assert isinstance(first["sandbox_html"], str)
         assert "DOM RENDERER" in first["sandbox_html"]
 

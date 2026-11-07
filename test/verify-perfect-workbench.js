@@ -25,7 +25,7 @@ const canvasSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'components
 const widgetsSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'components', 'NodeMicroWidgets.tsx'), 'utf8');
 const configSrc = fs.readFileSync(path.join(root, 'frontend', 'src', 'config.ts'), 'utf8');
 
-console.log('[PERFECT v2.8] 结构校验（终极版三件套）');
+console.log('[PERFECT v3.0.0] 结构校验（终极版三件套）');
 
 /* ---------- backend/perfect_engine.py ---------- */
 ok(engineSrc.includes('class CheckpointStore'), 'CheckpointStore（SQLite 时间旅行断点）存在');
@@ -38,7 +38,7 @@ ok(engineSrc.includes('Cyclic Agent Graph'), '环路兜底（反馈层）逻辑�
 ok(engineSrc.includes('shared_memory_bus'), '跨节点共享记忆总线存在');
 ok(engineSrc.includes('def add_custom_node_from_sidebar'), '算子拖拽注入画布 API 存在');
 ok(engineSrc.includes('_default_sandbox_template'), '实时沙盒 HTML/Tailwind 模板存在');
-ok(engineSrc.includes('初始化智能体监控面板 v2.8'), '沙盒初始缓存注入');
+ok(engineSrc.includes('初始化智能体监控面板 v3.0.0'), '沙盒初始缓存注入');
 ok(engineSrc.includes('node_outputs'), '节点输出表（数据沿边流动）存在');
 ok(/"event": "node_update"|"node_update"[\s\S]{0,80}node\.model_dump\(\)|node\.model_dump\(\)[\s\S]{0,200}"shared_memory_bus"/.test(engineSrc), 'node_update 事件携带完整节点与沙盒代码');
 ok(/node_update[\s\S]{0,400}sandbox_html/.test(engineSrc), 'node_update 事件携带 sandbox_html');
@@ -53,7 +53,7 @@ ok(mainSrc.includes('@app.patch("/api/v1/workflow/nodes/{node_id}/position"'), '
 ok(mainSrc.includes('@app.put("/api/v1/workflow/nodes/{node_id}/config"'), 'PUT JSON 热修改路由存在');
 ok(mainSrc.includes('@app.get("/api/v1/checkpoints"'), 'GET /checkpoints 时间旅行路由存在');
 ok(mainSrc.includes('@app.get("/api/v1/sandbox/preview"'), 'GET /sandbox/preview 路由存在');
-ok(mainSrc.includes('2.8.0-ultimate'), '版本号 2.8.0-ultimate');
+ok(mainSrc.includes('3.0.0'), '版本号 3.0.0');
 ok(mainSrc.includes('class AddNodeRequest') && mainSrc.includes('class MoveNodeRequest'), 'AddNode/MoveNode 请求模型存在');
 ok(mainSrc.includes('require_admin'), '设置接口管理守卫 require_admin 存在');
 ok(mainSrc.includes('validate_llm_api_base'), 'api_base SSRF 校验存在');
@@ -79,7 +79,7 @@ ok(wbSrc.includes('热更新') && wbSrc.includes('JSON 语法校验未通过'), 
 ok(wbSrc.includes('showSandboxModal') && wbSrc.includes('SandboxAndTimeTravelModal'), 'DOM 沙盒实时预览弹窗存在');
 ok(socketSrc.includes('setInterval') && socketSrc.includes('onSimulateTelemetry'), '本地仿真回退内核（后端未启动时驱动动画）存在（useWorkflowSocket）');
 ok(terminalLogSrc.includes('text-amber-400') && terminalLogSrc.includes('text-emerald-400') && terminalLogSrc.includes('classifyLogLine'), 'AI 终端日志分级着色存在（TerminalLog.classifyLogLine）');
-ok(wbSrc.includes('AIGENT-WORKFLOW STUDIO v2.8'), '顶部标题栏品牌标识存在');
+ok(wbSrc.includes('AIGENT-WORKFLOW STUDIO v3.0.0'), '顶部标题栏品牌标识存在');
 ok(wbSrc.includes('已连接后端') && wbSrc.includes('本地仿真'), 'WS 连接指示灯存在');
 
 console.log(`\n结构校验结果: ${pass} 通过, ${fail} 失败`);

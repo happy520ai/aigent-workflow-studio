@@ -40,7 +40,7 @@ def rest(method, path, payload=None):
 
 # ---------- REST 契约 ----------
 snap = rest("GET", "/api/v1/workflow")
-check("GET /api/v1/workflow 版本 v2.8", snap["version"] == "v2.8")
+check("GET /api/v1/workflow 版本 v3.0.0", snap["version"] == "v3.0.0")
 check("画布 5 个神经元节点", len(snap["nodes"]) == 5)
 check("4 条神经突触连线", len(snap["edges"]) == 4)
 
