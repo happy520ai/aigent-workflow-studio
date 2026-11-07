@@ -14,30 +14,15 @@ NODE_IDS = {
 
 
 def teardown_module(module):
-    # 引擎默认在 cwd 落 aigent_checkpoints.db（CheckpointStore 1:1 默认参数），测完清理
+    # 引擎默认在 cwd 落 aigent_checkpoints.db（CheckpointStore 1:1 默认参数），测完清理。
+    # T70：v1 test_workflow_e2e.py 已删除，不再需要重建同 schema 库——直接移除，保持工作区零扰动
     db = os.path.join(os.getcwd(), "aigent_checkpoints.db")
-    if os.path.exists(db):
-        try:
-            os.remove(db)
-        except OSError:
-            pass
-    # 重建同 schema 的 checkpoints 表（与 bootstrap_studio.py 一致），
-    # 兼容根目录 test_workflow_e2e.py::test_04 对该库的依赖
-    import sqlite3
-    with sqlite3.connect(db) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS checkpoints (
-                checkpoint_id TEXT PRIMARY KEY,
-                run_id TEXT NOT NULL,
-                node_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                state_payload TEXT NOT NULL,
-                generated_code TEXT NOT NULL
-            )
-            """
-        )
-        conn.commit()
+    for f in (db, db + "-wal", db + "-shm"):
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
 
 
 def make_engine() -> PerfectNeuralEngine:
